@@ -59,6 +59,7 @@ jobs:
           node tests/updates.cjs
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}

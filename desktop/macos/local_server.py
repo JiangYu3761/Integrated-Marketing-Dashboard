@@ -22,6 +22,17 @@ SITE_FILES = {
 }
 
 
+class LocalServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, *args, **kwargs):
+        self.started = threading.Event()
+        super().__init__(*args, **kwargs)
+
+    def service_actions(self):
+        self.started.set()
+
+
 def read_site(site):
     return {name: (Path(site) / name).read_bytes() for name in SITE_FILES}
 
@@ -75,9 +86,7 @@ def create_server(site, port=PORT):
         def log_message(self, *_args):
             pass  # No business data or browser requests in application logs.
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    server.daemon_threads = True
-    return server
+    return LocalServer(("127.0.0.1", port), Handler)
 
 
 def main():
@@ -91,6 +100,9 @@ def main():
             def watch_parent():
                 # Also exit if the app crashes or is force-quit. Never kill or
                 # reuse another process to free the port.
+                # shutdown() must follow serve_forever() initialization. A
+                # ready event avoids a startup/shutdown race on newer Python.
+                server.started.wait()
                 while os.getppid() == args.parent_pid:
                     time.sleep(1)
                 server.shutdown()

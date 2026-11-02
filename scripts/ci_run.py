@@ -13,7 +13,7 @@ def main():
                             encoding="utf-8", errors="replace")
     sys.stdout.write(result.stdout)
     if result.returncode and os.environ.get("GITHUB_ACTIONS") == "true":
-        diagnostic = result.stdout[-18000:] or "The check failed without output."
+        diagnostic = result.stdout[-3500:] or "The check failed without output."
         diagnostic = diagnostic.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
         print("::error title=Check failed::" + diagnostic)
     return result.returncode if result.returncode >= 0 else 128 - result.returncode

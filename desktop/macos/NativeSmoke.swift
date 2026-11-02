@@ -91,7 +91,7 @@ import WebKit
         check(document.querySelector('#mm-update-version').textContent.includes('当前版本'), 'native update bridge did not report version');
         return {ok: true, checks: ['eight views', 'task create/edit', 'completion and undo', 'Shanghai timestamp', 'day double-click', 'native update bridge', 'unsaved-edit update protection']};
         """#
-        webView.callAsyncJavaScript(script, arguments: ["phase": request.phase], in: nil, contentWorld: .page) { result in
+        webView.callAsyncJavaScript(script, arguments: ["phase": request.phase], in: nil, in: .page, completionHandler: { result in
             switch result {
             case .success(let value):
                 let report = value as? [String: Any] ?? ["ok": false, "error": "Invalid native result"]
@@ -110,6 +110,6 @@ import WebKit
                 finish(["ok": false, "error": String(describing: error)])
                 completion()
             }
-        }
+        })
     }
 }

@@ -166,6 +166,7 @@ def prepare_update(application, state, arch, os_version, manual=False, opener=fe
         manifest = validate_manifest(json.loads(raw), arch, os_version)
     except HTTPError as error:
         if error.code == 404:
+            error.close()
             return {"phase": "unpublished", "message": "暂未找到可用的已发布更新。"}
         raise
     if version_tuple(manifest["version"]) <= version_tuple(current):
