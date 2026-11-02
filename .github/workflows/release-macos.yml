@@ -1,0 +1,70 @@
+name: Publish macOS updates
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag, matching desktop/macos/version.json (e.g. v1.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Validate website and update transactions
+        run: |
+          node scripts/check.mjs
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Build and verify native app
+        run: python3 scripts/install_macos_app.py --build-only
+      - name: Validate native WebKit and persistence across app restart
+        run: python3 tests/macos_smoke.py
+      - name: Package architecture-specific update
+        run: python3 scripts/package_macos_update.py --tag "$RELEASE_TAG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: update-${{ matrix.os }}
+          path: outputs/release/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: update-*
+          merge-multiple: true
+          path: release
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'This release already exists. Use a new version tag; published update files are never overwritten.'
+            exit 1
+          fi
+          test -f release/update-macos-arm64.json
+          test -f release/update-macos-x86_64.json
+          test -f release/MarketingDashboard-macOS-arm64.zip
+          test -f release/MarketingDashboard-macOS-x86_64.zip
+          gh release create "$RELEASE_TAG" release/* --verify-tag --draft --title "产品经营地图 $RELEASE_TAG" --notes 'Mac 独立应用更新，包含 Apple Silicon 与 Intel 安装包。'
+          gh release edit "$RELEASE_TAG" --draft=false --latest

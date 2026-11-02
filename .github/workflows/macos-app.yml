@@ -1,0 +1,84 @@
+name: macOS app
+
+on:
+  push:
+    paths:
+      - 'desktop/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'src/**'
+      - 'index.html'
+      - '安装到Dock.command'
+      - '.github/workflows/macos-app.yml'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'src/**'
+      - 'index.html'
+      - '安装到Dock.command'
+      - '.github/workflows/macos-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser test tools outside the checkout
+        run: |
+          npm install --prefix "$RUNNER_TEMP/dashboard-browser-tests" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/dashboard-browser-tests/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Validate task and update interfaces
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/dashboard-browser-tests/node_modules"
+          export CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")"
+          python3 -m http.server 8877 --bind 127.0.0.1 >"$RUNNER_TEMP/dashboard-browser-server.log" 2>&1 &
+          dashboard_server_pid=$!
+          trap 'kill "$dashboard_server_pid"' EXIT
+          python3 - <<'PY'
+          import time
+          from urllib.request import urlopen
+          for attempt in range(30):
+              try:
+                  with urlopen('http://127.0.0.1:8877/', timeout=1) as response:
+                      assert response.status == 200
+                  break
+              except OSError:
+                  if attempt == 29:
+                      raise
+                  time.sleep(0.2)
+          PY
+          node scripts/check.mjs
+          node tests/day-view.cjs
+          node tests/updates.cjs
+  build:
+    strategy:
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check website and desktop service
+        run: |
+          node scripts/check.mjs
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Compile native application
+        run: python3 scripts/install_macos_app.py --build-only
+      - name: Validate native WebKit and persistence across app restart
+        run: python3 tests/macos_smoke.py
+      - name: Verify architecture-specific update package
+        run: |
+          dashboard_release_tag="v$(python3 -c "import json; print(json.load(open('desktop/macos/version.json'))['version'])")"
+          python3 scripts/package_macos_update.py --tag "$dashboard_release_tag"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marketing-dashboard-${{ matrix.os }}
+          path: |
+            outputs/release/*
+            outputs/native-smoke-*.json

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./src/app.css">
   <script src="./src/state.js" defer></script>
   <script src="./src/app.js" defer></script>
+  <script src="./src/updates.js" defer></script>
 </head>
 <body>
 <div id="market-map-template" aria-label="跨境电商产品经营地图空白模板">
@@ -57,6 +58,10 @@
       <div id="mm-announcement" aria-live="polite" class="mm-label"></div>
     </main>
   </div>
+  <section id="mm-updates" class="mm-updates" aria-labelledby="mm-update-heading">
+    <div class="mm-update-copy"><h2 id="mm-update-heading">应用更新</h2><p id="mm-update-version">浏览器模式</p><p id="mm-update-status" role="status" aria-live="polite">请在独立 Mac 应用中检查和安装更新。</p></div>
+    <div class="mm-update-actions"><label><input id="mm-update-auto" type="checkbox" disabled>自动检查并安装更新</label><button id="mm-update-check" type="button" disabled>检查更新</button><span id="mm-update-time"></span></div>
+  </section>
   <footer class="mm-footer"><span>空白模板</span><span>OpenProject／飞书／API：未连接</span></footer>
 </div>
 </body>

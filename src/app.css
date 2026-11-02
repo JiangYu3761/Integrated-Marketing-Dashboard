@@ -256,3 +256,36 @@ html{color-scheme:light dark}body{margin:0;padding:16px;background:light-dark(#f
 #market-map-template :is(.mm-task-copy,.mm-check-copy):focus-visible{outline:2px solid var(--mm-brand);outline-offset:2px;border-radius:3px}
 @media(max-width:620px){#market-map-template #mm-editor{padding:16px}#market-map-template #mm-editor .mm-buttons{bottom:-16px}#market-map-template .mm-controls label{flex-basis:calc(50% - 9px)}#market-map-template .mm-task-row .mm-tl-label{padding:6px}#market-map-template .mm-task-row .mm-task-copy{font-size:12px!important}}
 @media(max-width:420px){#market-map-template #mm-editor .mm-form-grid{grid-template-columns:1fr}}
+
+/* Each day contains a checklist, keeping task text at a readable width. */
+#market-map-template .mm-day-person-row .mm-tl-label{align-items:flex-start;padding-top:14px}
+#market-map-template .mm-day-cell{position:absolute;inset-block:0;padding:6px;border-right:1px solid var(--mm-line);background:var(--mm-bg);outline-offset:-3px}
+#market-map-template .mm-day-cell-selected{background:color-mix(in srgb,var(--mm-tint) 42%,var(--mm-bg))}
+#market-map-template .mm-day-cell:hover{background:var(--mm-tint)}
+#market-map-template .mm-day-cell:focus-visible{outline:2px solid var(--mm-brand)}
+#market-map-template .mm-day-items{display:flex;flex-direction:column}
+#market-map-template .mm-day-task{display:flex;align-items:center;gap:9px;height:var(--mm-day-item-height,38px);flex:0 0 var(--mm-day-item-height,38px);padding:0 5px;border-bottom:1px solid color-mix(in srgb,var(--mm-line) 65%,transparent)}
+#market-map-template .mm-day-task .mm-task-check{margin:0;flex-shrink:0}
+#market-map-template .mm-day-task-title{flex:1;display:block;min-height:0!important;height:100%;padding:0!important;border:0!important;border-radius:0;background:transparent!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-size:14px}
+#market-map-template .mm-day-task.mm-done .mm-day-task-title{color:var(--mm-sub);text-decoration:line-through}
+#market-map-template .mm-day-task.mm-done::after{content:'';position:absolute;left:31px;right:5px;top:50%;border-top:1px solid var(--mm-sub);opacity:.6;pointer-events:none}
+#market-map-template .mm-day-cell .mm-day-add{display:block;width:100%;min-height:30px;margin-top:6px;padding:5px 7px;border:0;background:transparent;font-size:12px;color:var(--mm-sub)}
+#market-map-template .mm-day-cell .mm-day-add:hover{color:var(--mm-brand);background:var(--mm-bg)}
+#market-map-template .mm-day-task-title:focus-visible{outline:2px solid var(--mm-brand);outline-offset:-2px}
+#market-map-template .mm-editor-note{margin:0 0 16px;color:var(--mm-sub);font-size:12px;line-height:1.6}
+#market-map-template .mm-day-date-heading{display:flex;flex-direction:column;gap:4px}
+#market-map-template .mm-day-date-heading>span{font-size:12px;color:var(--mm-sub)}
+#market-map-template .mm-day-date-heading>strong{font-size:20px}
+#market-map-template .mm-day-date-heading small{margin-left:10px;font-size:12px;color:var(--mm-sub);font-weight:400}
+
+#market-map-template .mm-updates{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 22px;border-top:1px solid var(--mm-line);background:var(--mm-soft)}
+#market-map-template .mm-update-copy h2{margin:0 0 6px;font-size:14px;font-weight:600}
+#market-map-template .mm-update-copy p{margin:4px 0;color:var(--mm-sub);font-size:12px}
+#market-map-template .mm-update-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:12px;font-size:12px}
+#market-map-template .mm-update-actions label{display:flex;flex-direction:row;align-items:center;gap:6px;white-space:nowrap}
+#market-map-template .mm-update-actions input{width:16px;height:16px;margin:0}
+#market-map-template .mm-update-actions button{white-space:nowrap}
+#market-map-template #mm-update-time{flex-basis:100%;text-align:right;color:var(--mm-sub);font-size:11px}
+#market-map-template .mm-updates[data-phase=error] #mm-update-status{color:var(--mm-red)}
+#market-map-template .mm-updates[data-phase=installed] #mm-update-status{color:var(--mm-green)}
+@media(max-width:620px){#market-map-template .mm-updates{align-items:flex-start;flex-direction:column;gap:12px;padding:16px 12px}#market-map-template .mm-update-actions{justify-content:flex-start}#market-map-template #mm-update-time{text-align:left}}
