@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import threading
 import time
+from socketserver import TCPServer
 from urllib.parse import urlsplit
 
 PROJECT = "JiangYu3761/Integrated-Marketing-Dashboard"
@@ -31,6 +32,14 @@ class LocalServer(ThreadingHTTPServer):
 
     def service_actions(self):
         self.started.set()
+
+    def server_bind(self):
+        # HTTPServer normally performs a reverse-DNS lookup here. Our service
+        # only binds loopback, so DNS is unnecessary and can delay app startup
+        # on macOS networks with slow or unavailable reverse lookup.
+        TCPServer.server_bind(self)
+        self.server_name = "localhost"
+        self.server_port = self.server_address[1]
 
 
 def read_site(site):

@@ -70,6 +70,15 @@ class DesktopServerTests(unittest.TestCase):
         with self.request("/_desktop/health") as response:
             self.assertEqual(json.load(response)["project"], PROJECT)
 
+    def test_loopback_startup_does_not_depend_on_reverse_dns(self):
+        with patch("socket.getfqdn", side_effect=AssertionError("unexpected reverse-DNS lookup")):
+            server = create_server(ROOT, port=0)
+        try:
+            self.assertEqual(server.server_name, "localhost")
+            self.assertGreater(server.server_port, 0)
+        finally:
+            server.server_close()
+
     def test_server_rejects_incomplete_bundle(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(FileNotFoundError):
