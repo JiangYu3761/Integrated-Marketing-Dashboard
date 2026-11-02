@@ -66,16 +66,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check website and desktop service
         run: |
-          node scripts/check.mjs
-          python3 -m unittest discover -s tests -p 'test_*.py' -v
+          python3 scripts/ci_run.py node scripts/check.mjs
+          python3 scripts/ci_run.py python3 -m unittest discover -s tests -p 'test_*.py' -v
       - name: Compile native application
-        run: python3 scripts/install_macos_app.py --build-only
+        run: python3 scripts/ci_run.py python3 scripts/install_macos_app.py --build-only
       - name: Validate native WebKit and persistence across app restart
-        run: python3 tests/macos_smoke.py
+        run: python3 scripts/ci_run.py python3 tests/macos_smoke.py
       - name: Verify architecture-specific update package
         run: |
           dashboard_release_tag="v$(python3 -c "import json; print(json.load(open('desktop/macos/version.json'))['version'])")"
-          python3 scripts/package_macos_update.py --tag "$dashboard_release_tag"
+          python3 scripts/ci_run.py python3 scripts/package_macos_update.py --tag "$dashboard_release_tag"
       - uses: actions/upload-artifact@v4
         with:
           name: marketing-dashboard-${{ matrix.os }}

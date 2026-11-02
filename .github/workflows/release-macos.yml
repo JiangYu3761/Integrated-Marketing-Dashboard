@@ -28,14 +28,14 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - name: Validate website and update transactions
         run: |
-          node scripts/check.mjs
-          python3 -m unittest discover -s tests -p 'test_*.py' -v
+          python3 scripts/ci_run.py node scripts/check.mjs
+          python3 scripts/ci_run.py python3 -m unittest discover -s tests -p 'test_*.py' -v
       - name: Build and verify native app
-        run: python3 scripts/install_macos_app.py --build-only
+        run: python3 scripts/ci_run.py python3 scripts/install_macos_app.py --build-only
       - name: Validate native WebKit and persistence across app restart
-        run: python3 tests/macos_smoke.py
+        run: python3 scripts/ci_run.py python3 tests/macos_smoke.py
       - name: Package architecture-specific update
-        run: python3 scripts/package_macos_update.py --tag "$RELEASE_TAG"
+        run: python3 scripts/ci_run.py python3 scripts/package_macos_update.py --tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@v4
         with:
           name: update-${{ matrix.os }}

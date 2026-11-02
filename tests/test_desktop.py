@@ -92,7 +92,7 @@ class InstallerTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.root = Path(self.directory.name).resolve()
         self.destination = self.root / "产品经营地图.app"
 
     def bundle(self, path, identifier=None):
