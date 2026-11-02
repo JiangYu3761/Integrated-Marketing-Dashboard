@@ -107,6 +107,9 @@ def main():
     toolchain = subprocess.run(["/usr/bin/xcrun", "--find", "swiftc"], capture_output=True, text=True)
     if toolchain.returncode != 0:
         raise RuntimeError("尚未安装 Apple 命令行开发工具。请先在终端运行 xcode-select --install，完成后重新双击安装脚本。")
+    sdk = subprocess.run(["/usr/bin/xcrun", "--sdk", "macosx", "--show-sdk-path"], capture_output=True, text=True)
+    if sdk.returncode != 0 or not Path(sdk.stdout.strip()).is_dir():
+        raise RuntimeError("未找到 macOS SDK。请安装或更新 Apple 命令行开发工具后重试。")
 
     parent = ROOT / "outputs/macos" if args.build_only else Path.home() / "Applications"
     destination = parent / (APP_NAME + ".app")
@@ -140,7 +143,7 @@ def main():
         }
         (contents / "Info.plist").write_bytes(plistlib.dumps(info))
         print("正在编译独立应用窗口（首次可能需要几分钟）…", flush=True)
-        subprocess.run([toolchain.stdout.strip(), "-O", "-target", platform.machine() + "-apple-macos14.0",
+        subprocess.run([toolchain.stdout.strip(), "-O", "-target", platform.machine() + "-apple-macosx14.0", "-sdk", sdk.stdout.strip(),
                         "-framework", "Cocoa", "-framework", "WebKit",
                         str(ROOT / "desktop/macos/main.swift"), str(ROOT / "desktop/macos/AppUpdates.swift"),
                         str(ROOT / "desktop/macos/NativeSmoke.swift"), "-o", str(executable)], check=True)
