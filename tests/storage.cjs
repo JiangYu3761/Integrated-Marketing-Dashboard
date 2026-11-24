@@ -71,7 +71,7 @@ const { chromium } = require('playwright');
     assert(task.completedAt);
     const input = page.locator('[data-import]');
     await input.setInputFiles({name:'broken.json',mimeType:'application/json',buffer:Buffer.from('{}')});
-    assert.match(await page.locator('[data-backup-status]').textContent(), /备份未导入/);
+    await page.locator('[data-backup-status]').filter({hasText:'备份未导入'}).waitFor();
     assert.equal((await state()).tasks[0].id, task.id);
     // An older saved schema must go through the normal existing migration.
     file.privateContent.data.version = 4;
