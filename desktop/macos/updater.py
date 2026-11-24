@@ -289,7 +289,7 @@ def install_prepared(job, verifier=verify_bundle, launcher=launch, readiness=wai
             atomic_json(job.parent / "last-result.json", {"phase": "error", "failed_version": manifest["version"], "message": "更新未成功，已恢复旧版。可手动检查重试。"})
             launcher(application)
             raise RuntimeError("更新未成功，已恢复旧版。") from error
-        atomic_json(job.parent / "last-result.json", {"phase": "installed", "version": manifest["version"], "message": "已自动更新到 " + manifest["version"] + "。"})
+        atomic_json(job.parent / "last-result.json", {"phase": "installed", "version": manifest["version"], "message": "已更新到 " + manifest["version"] + "。"})
         installed = True
     finally:
         # Retain a recoverable backup if restoring it also failed.

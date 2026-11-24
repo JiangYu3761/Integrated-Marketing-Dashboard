@@ -7,10 +7,13 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from desktop.macos.updater import BUNDLE_ID, PROJECT, RELEASES, bundle_info, validate_manifest, verify_bundle
+from desktop.macos.updater import (
+    BUNDLE_ID, PROJECT, RELEASES, bundle_info, extract_archive, validate_manifest, verify_bundle,
+)
 
 
 def main():
@@ -36,6 +39,10 @@ def main():
         "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(), "size": archive.stat().st_size,
     }
     validate_manifest(manifest, arch, "14.0.0")
+    # Verify the archive as extracted by the installed updater before publishing its manifest.
+    with tempfile.TemporaryDirectory(prefix="dashboard-release-check-") as directory:
+        extracted = extract_archive(archive, Path(directory))
+        verify_bundle(extracted, manifest)
     target = args.output / ("update-macos-" + arch + ".json")
     target.write_text(json.dumps(manifest, indent=2) + "\n")
     print("已生成：" + archive.name + "、" + target.name)
