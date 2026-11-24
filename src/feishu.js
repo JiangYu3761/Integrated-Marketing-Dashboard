@@ -40,9 +40,11 @@
       const confirmed = (report.items || []).filter(item => item.taskId && item.publish !== false);
       const productIds = [...new Set(confirmed.map(item => item.product).filter(id => products.has(id)))];
       const projectIds = [...new Set(productIds.map(id => products.get(id).projectId))];
-      const owner = people.get(report.personId) || '';
+      const owner = people.get(report.personId) || '本机填写人';
+      const completed = (report.completedSnapshot || []).map(entry => '• ' + entry.title);
+      const content = completed.length ? [report.text, '当天已完成', ...completed].join('\n') : report.text;
       tasks.push(make('report:' + report.id, ['report:' + report.id, '日报', report.date + ' ' + (owner || '') + '日报', projectIds.map(id => projects.get(id)).join('、'),
-        productIds.map(id => products.get(id).name).join('、'), owner, report.date, '', '已提交', '', '', '', report.id, report.text],
+        productIds.map(id => products.get(id).name).join('、'), owner, report.date, '', '已提交', '', '', '', report.id, content],
         {reports:[report], eligible:true, projectIds, productIds, personId:report.personId || ''}));
     }
     return tasks;

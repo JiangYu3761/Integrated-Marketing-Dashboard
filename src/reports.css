@@ -24,3 +24,6 @@
 #market-map-template .mm-report-snapshot { color: var(--mm-sub); font-size: 13px; }
 #market-map-template .mm-report-snapshot { margin: 10px 0 16px; }
 #market-map-template .mm-report-quote { border-left: 2px solid var(--mm-line); padding-left: 10px; line-height: 1.6; overflow-wrap: anywhere; }
+#market-map-template .mm-report-routing { margin-top: 10px; }
+#market-map-template .mm-report-routing summary { cursor: pointer; font-size: 13px; color: var(--mm-sub); }
+#market-map-template .mm-report-routing[open] summary { margin-bottom: 10px; }

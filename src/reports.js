@@ -207,19 +207,25 @@
       const targets = data.tasks.filter(t => t.product === item.product && !t.dailyWork?.length);
       const related = data.tasks.filter(t => t.product === item.product && t.id !== item.taskId);
       const taskList = rows => rows.map(t => ({ id: t.id, name: t.title + (t.owner ? ' · ' + t.owner : '') }));
+      const target = targets.find(t => t.id === item.taskId);
+      const destination = target ? '更新「' + target.title + '」' : '新建任务';
       return `<fieldset data-report-item="${esc(item.id)}" class="mm-report-item">
         <legend><label><input type="checkbox" data-field="publish" ${item.publish ? 'checked' : ''}>纳入工作安排</label></legend>
         <p class="mm-report-quote">${esc(item.source)}</p>
         <div class="mm-form-grid">
           <label>任务名称<input data-field="title" maxlength="100" value="${esc(item.title)}"></label>
           <label>行动日期<input type="date" data-field="actionDate" value="${esc(item.actionDate)}"></label>
-          <label>协作方<input data-field="collaborator" maxlength="80" value="${esc(item.collaborator || '')}"></label>
           <label>负责人<select data-field="personId">${makeOptions(data.people, item.personId, '待确认')}</select></label>
-          <label>产品<select data-field="product">${makeOptions(data.products, item.product, '选择产品')}</select></label>
           <label>业务板块<select data-field="module">${makeOptions(data.modules, item.module, '待归类')}</select></label>
+        </div>
+        <details class="mm-report-routing" ${!item.product ? 'open' : ''}>
+          <summary>${esc(item.product ? destination : '请选择所属产品')} · 关联与协作</summary>
+          <div class="mm-form-grid">
+          <label>产品<select data-field="product">${makeOptions(data.products, item.product, '选择产品')}</select></label>
+          <label>协作方<input data-field="collaborator" maxlength="80" value="${esc(item.collaborator || '')}"></label>
           <label>更新任务<select data-field="taskId">${makeOptions(taskList(targets), item.taskId, '新建任务')}</select></label>
           <label>关联排期<select data-field="relatedTaskId">${makeOptions(taskList(related), item.relatedTaskId, '无')}</select></label>
-        </div>
+        </div></details>
         <div class="mm-report-flags">
           <label><input type="checkbox" data-field="priority" ${item.priority ? 'checked' : ''}>工作重点</label>
           <label><input type="checkbox" data-field="done" ${item.done ? 'checked' : ''}>已完成</label>
@@ -230,9 +236,13 @@
     function drawPreview() {
       const area = find('#mm-report-suggestions');
       if (draft.previewText !== draft.text || !draft.text.trim()) { area.replaceChildren(); return; }
+      const expanded = new Set(Array.from(area.querySelectorAll('details[open]'), details => details.closest('[data-report-item]').dataset.reportItem));
       area.innerHTML = '<h3>确认分发</h3><p class="mm-label">勾选的事项将更新任务，其余内容仅保存在日报。关联排期保留原日期。</p>' +
         draft.items.map(card).join('') +
         '<button type="button" class="mm-primary" id="mm-report-submit">确认提交日报</button>';
+      for (const row of area.querySelectorAll('[data-report-item]')) {
+        if (expanded.has(row.dataset.reportItem)) row.querySelector('details').open = true;
+      }
       area.oninput = event => {
         const field = event.target.dataset.field;
         const item = draft.items.find(row => row.id === event.target.closest('[data-report-item]')?.dataset.reportItem);
@@ -339,5 +349,6 @@
     drawPreview();
   }
 
+  window.addEventListener('dashboard-saved', () => window.projectState?.setDirty?.('report', false));
   window.dashboardReports = Object.freeze({ render });
 })();
