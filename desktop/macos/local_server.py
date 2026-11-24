@@ -6,6 +6,7 @@ import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import sqlite3
 from pathlib import Path
 import threading
 import time
@@ -105,7 +106,7 @@ def create_server(site, port=PORT, connector=None):
                 status = 200
             except ConnectorError as error:
                 body, status = {"error": str(error)}, 422
-            except (OSError, KeyError, TypeError, ValueError) as error:
+            except (sqlite3.Error, OSError, KeyError, TypeError, ValueError):
                 body, status = {"error": "飞书连接或本地记录无法读取，请核对连接设置后重试。"}, 502
             raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
             self.send_response(status)

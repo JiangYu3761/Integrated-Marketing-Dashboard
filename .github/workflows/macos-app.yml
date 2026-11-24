@@ -2,6 +2,7 @@ name: macOS app
 
 on:
   push:
+    branches: ['**']
     paths:
       - 'desktop/**'
       - 'scripts/**'

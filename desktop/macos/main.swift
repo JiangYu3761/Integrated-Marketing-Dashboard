@@ -154,7 +154,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: python)
-            process.arguments = [resources.appendingPathComponent("local_server.py").path,
+            // Imported helpers live inside the signed bundle. Bytecode caches
+            // created beside them would invalidate its signature after launch.
+            process.arguments = ["-B", resources.appendingPathComponent("local_server.py").path,
                                  "--site", resources.appendingPathComponent("site").path,
                                  "--parent-pid", String(ProcessInfo.processInfo.processIdentifier)]
             process.standardOutput = FileHandle.nullDevice
