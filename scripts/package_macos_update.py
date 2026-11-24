@@ -5,15 +5,25 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from desktop.macos.updater import (
     BUNDLE_ID, PROJECT, RELEASES, bundle_info, extract_archive, validate_manifest, verify_bundle,
 )
+
+
+def write_archive(application, archive):
+    # ZipFile marks non-ASCII paths as UTF-8 and preserves Unix executable bits.
+    # The updater reads the same ZIP format on every supported Mac.
+    with ZipFile(archive, "w", compression=ZIP_DEFLATED) as output:
+        for path in [application, *sorted(application.rglob("*"))]:
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):
+                raise ValueError("更新包不允许符号链接或特殊文件。")
+            output.write(path, path.relative_to(application.parent).as_posix())
 
 
 def main():
@@ -31,7 +41,7 @@ def main():
     verify_bundle(args.app, {"version": version, "arch": arch})
     args.output.mkdir(parents=True, exist_ok=True)
     archive = args.output / ("MarketingDashboard-macOS-" + arch + ".zip")
-    subprocess.run(["/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(args.app), str(archive)], check=True)
+    write_archive(args.app, archive)
     manifest = {
         "schema": 1, "project": PROJECT, "bundle_id": BUNDLE_ID,
         "version": version, "arch": arch, "minimum_os": "14.0.0",
