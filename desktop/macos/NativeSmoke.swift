@@ -7,7 +7,7 @@ import WebKit
         let args = CommandLine.arguments
         guard let report = args.firstIndex(of: "--smoke-report"), args.count > report + 1,
               let phase = args.firstIndex(of: "--smoke-phase"), args.count > phase + 1,
-              ["exercise", "restore"].contains(args[phase + 1]) else { return nil }
+              ["exercise", "restore", "restore-upgrade"].contains(args[phase + 1]) else { return nil }
         return (URL(fileURLWithPath: args[report + 1]), args[phase + 1])
     }()
 
@@ -33,17 +33,27 @@ import WebKit
         const check = (condition, message) => { if (!condition) throw new Error(message); };
         const state = () => window.projectState.read()?.privateContent;
         const title = 'Native WebKit persistence smoke task';
-        if (phase === 'restore') {
+        const draft = 'Native WebKit report draft';
+        if (phase === 'restore' || phase === 'restore-upgrade') {
             const task = state()?.data.tasks.find(task => task.title === title);
             check(task, 'task did not persist across native app restart');
             check(task.status === '已完成', 'completion did not persist');
             check(task.completedAt === '2026-11-01T03:30:00.000Z', 'manual Shanghai timestamp did not persist');
-            return {ok: true, checks: ['native app restart', 'persistent WebKit task data', 'completion timestamp']};
+            const checks = ['native app restart', 'persistent WebKit task data', 'completion timestamp'];
+            if (phase === 'restore') {
+                document.querySelector('#mm-tab-report').click();
+                check(document.querySelector('#mm-report-text').value === draft, 'report draft did not persist');
+                checks.push('report draft');
+            }
+            return {ok: true, checks};
         }
         check(document.querySelector('#mm-view-time') && window.projectState, 'page or state adapter not loaded');
-        for (const view of ['marketing', 'ceo', 'map', 'table', 'people', 'projects', 'fields', 'time']) {
+        check(!document.querySelector('#mm-view-calendar').hidden, 'calendar is not the initial view');
+        const pageURL = location.href;
+        for (const view of ['calendar', 'report', 'feishu', 'marketing', 'ceo', 'map', 'table', 'people', 'projects', 'fields', 'time']) {
             document.querySelector('#mm-tab-' + view).click();
             check(!document.querySelector('#mm-view-' + view).hidden, 'view failed: ' + view);
+            check(location.href === pageURL, 'view left the app: ' + view);
         }
         document.querySelector('#mm-add-task').click();
         let form = document.querySelector('#mm-task-form');
@@ -89,13 +99,17 @@ import WebKit
         document.querySelector('#mm-cancel-task').click();
         check(window.dashboardCanInstallUpdate() === true, 'updater remains blocked after closing editor');
         check(document.querySelector('#mm-update-version').textContent.includes('当前版本'), 'native update bridge did not report version');
-        return {ok: true, checks: ['eight views', 'task create/edit', 'completion and undo', 'Shanghai timestamp', 'day double-click', 'native update bridge', 'unsaved-edit update protection']};
+        document.querySelector('#mm-tab-report').click();
+        const editor = document.querySelector('#mm-report-text');
+        editor.value = draft;
+        editor.dispatchEvent(new Event('input', {bubbles: true}));
+        return {ok: true, checks: ['four primary views in one window', 'product and management views', 'task create/edit', 'completion and undo', 'Shanghai timestamp', 'day double-click', 'native update bridge', 'unsaved-edit update protection', 'report draft']};
         """#
         webView.callAsyncJavaScript(script, arguments: ["phase": request.phase], in: nil, in: .page, completionHandler: { result in
             switch result {
             case .success(let value):
                 let report = value as? [String: Any] ?? ["ok": false, "error": "Invalid native result"]
-                if request.phase == "restore" {
+                if request.phase == "restore" || request.phase == "restore-upgrade" {
                     webView.configuration.websiteDataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {
                         finish(report)
                         completion()

@@ -1,0 +1,14 @@
+.fs-top,.fs-filters{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.fs-top{justify-content:space-between;margin:10px 0}
+#mm-feishu-config{margin:12px 0;padding:10px 0;border-block:1px solid var(--mm-line)}
+#mm-feishu-config summary{cursor:pointer;font-weight:600}
+#mm-feishu-config p{margin:8px 0}
+.fs-filters{align-items:flex-end;margin:12px 0}
+.fs-scroll{overflow-x:auto}
+.fs-scroll table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}
+.fs-scroll th,.fs-scroll td{padding:9px;vertical-align:top;border-bottom:1px solid var(--mm-line)}
+.fs-scroll th{white-space:nowrap;color:var(--mm-sub);font-weight:600}
+.fs-scroll td small{display:block;color:var(--mm-sub)}
+.fs-scroll td:first-child{min-width:155px}
+.fs-scroll td:last-child a,.fs-scroll td:last-child button{display:inline-block;margin:2px}
+.fs-mapping{line-height:1.6}

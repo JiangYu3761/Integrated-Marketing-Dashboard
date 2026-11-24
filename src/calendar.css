@@ -1,0 +1,64 @@
+#market-map-template .cal-layout {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(200px,25%);
+  gap:24px;
+  align-items:start;
+  margin-top:16px;
+}
+#market-map-template .cal-toolbar,
+#market-map-template .cal-controls,
+#market-map-template .cal-actions {display:flex; align-items:center; gap:6px}
+#market-map-template .cal-toolbar {justify-content:space-between; margin-bottom:16px}
+#market-map-template .cal-layout h2 {margin:0; font-size:18px; font-weight:650}
+#market-map-template .cal-toolbar h2 {font-size:22px; letter-spacing:-.02em}
+#market-map-template .cal-controls button {min-width:34px; text-align:center; line-height:1.15; padding:8px 10px}
+#market-map-template .cal-days {border:1px solid var(--mm-line); border-radius:9px; overflow:hidden}
+#market-map-template .cal-weekdays,
+#market-map-template .cal-grid {display:grid; grid-template-columns:repeat(7,minmax(0,1fr))}
+#market-map-template .cal-weekdays {background:var(--mm-soft); color:var(--mm-sub); font-size:12px}
+#market-map-template .cal-weekdays span {text-align:center; padding:9px 0}
+#market-map-template .cal-grid {gap:1px; border-top:1px solid var(--mm-line); background:var(--mm-line); touch-action:pan-y; overscroll-behavior-x:contain}
+#market-map-template .cal-date {
+  display:flex; flex-direction:column; gap:2px; align-items:flex-start;
+  padding:7px 5px 5px; min-height:87px; overflow:hidden;
+  border:0; border-radius:0; background:var(--mm-bg); color:var(--mm-ink); font-size:13px;
+}
+#market-map-template .cal-date:hover {background:var(--mm-soft)}
+#market-map-template .cal-date[data-other-month] {background:var(--mm-soft); color:var(--mm-sub)}
+#market-map-template .cal-date[aria-pressed=true] {background:var(--mm-tint); box-shadow:inset 0 0 0 2px var(--mm-brand); color:var(--mm-brand)}
+#market-map-template .cal-date:focus-visible {outline:2px solid var(--mm-brand); outline-offset:-2px}
+#market-map-template .cal-number {display:grid; place-items:center; min-width:23px; min-height:23px; font-variant-numeric:tabular-nums}
+#market-map-template .cal-date[aria-current=date] .cal-number {background:var(--mm-brand); border-radius:50%; color:var(--mm-bg); font-weight:650}
+#market-map-template .cal-preview {width:100%; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; border-left:2px solid var(--mm-brand); padding-left:4px; color:var(--mm-brand); font-size:11px; line-height:1.4}
+#market-map-template .cal-count {color:var(--mm-sub); font-size:11px; padding-left:3px}
+#market-map-template .cal-complete .cal-task,
+#market-map-template .cal-preview.cal-complete {text-decoration:line-through; color:var(--mm-sub)}
+#market-map-template .cal-agenda {border-left:1px solid var(--mm-line); padding-left:19px}
+#market-map-template .cal-agenda select {margin:11px 0; max-width:100%}
+#market-map-template .cal-actions {flex-wrap:wrap}
+#market-map-template .cal-actions button {font-size:13px}
+#market-map-template .cal-agenda h3 {display:flex; align-items:baseline; gap:7px; margin:20px 0 6px; font-size:14px}
+#market-map-template .cal-agenda h3 span,
+#market-map-template .cal-agenda small,
+#market-map-template .cal-empty {color:var(--mm-sub); font-size:12px; font-weight:400}
+#market-map-template .cal-agenda ul {list-style:none; padding:0; margin:0}
+#market-map-template .cal-row {display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:6px; align-items:start; border-top:1px solid var(--mm-line); padding:9px 0}
+#market-map-template .cal-row input {margin-top:5px; accent-color:var(--mm-brand)}
+#market-map-template .cal-item {display:flex; flex-direction:column; align-items:flex-start; gap:3px}
+#market-map-template .cal-task {padding:0; border:0; background:transparent; overflow-wrap:anywhere}
+#market-map-template .cal-task:hover {color:var(--mm-brand); text-decoration:underline}
+#market-map-template .cal-source {border:0; padding:0; color:var(--mm-brand); background:transparent; font-size:12px}
+#market-map-template .cal-pin {padding:0 4px; border:0; background:transparent; font-size:19px; color:var(--mm-sub); line-height:1.25}
+#market-map-template .cal-pin[aria-pressed=true] {color:var(--mm-brand)}
+#market-map-template .cal-overdue {margin-top:16px; color:var(--mm-ink)}
+#market-map-template .cal-overdue summary {font-size:13px; color:var(--mm-amber); cursor:pointer}
+@media (max-width:1000px) {
+  #market-map-template .cal-layout {grid-template-columns:1fr}
+  #market-map-template .cal-agenda {border-left:0; border-top:1px solid var(--mm-line); padding:16px 0 0}
+  #market-map-template .cal-agenda select {width:auto; min-width:135px}
+}
+@media (max-width:620px) {
+  #market-map-template .cal-date {min-height:66px; padding:3px 2px}
+  #market-map-template .cal-toolbar h2 {font-size:18px}
+  #market-map-template .cal-count,#market-map-template .cal-preview {font-size:10px}
+}

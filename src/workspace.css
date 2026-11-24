@@ -1,0 +1,88 @@
+body {
+  padding: 0;
+  background: light-dark(#f6f8f6, #111815);
+}
+#market-map-template {
+  --mm-brand: light-dark(#22644d, #9ad6bb);
+  --mm-tint: light-dark(#e8f3ed, #22392e);
+  --mm-line: light-dark(#dce4df, #37473e);
+  --mm-soft: light-dark(#f5f8f6, #202923);
+  --mm-bg: light-dark(#fff, #19201c);
+  --mm-ink: light-dark(#1d3026, #e3eee7);
+  --mm-sub: light-dark(#5b6e62, #a9b9ae);
+  border: 0; border-radius: 0; min-height: 100vh; max-width: none;
+  overflow: visible;
+}
+.workspace-header, .workspace-context, .primary-nav, .workspace-brand {
+  display: flex;
+  align-items: center;
+}
+.workspace-header {
+  gap: clamp(14px, 3vw, 56px); padding: 0 clamp(16px, 3vw, 52px);
+  border-bottom: 1px solid var(--mm-line);
+}
+.workspace-brand {
+  gap: 10px; font-size: 18px; letter-spacing: .02em;
+  font-weight: 700; white-space: nowrap;
+}
+.brand-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--mm-brand); position: relative;
+}
+.brand-icon::before {
+  content: ''; position: absolute; inset: 6px; border: 1.5px solid var(--mm-bg);
+  border-top-width: 4px; border-radius: 2px;
+}
+.primary-nav { gap: clamp(3px, 1.5vw, 24px); }
+#market-map-template .primary-nav button {
+  border: 0; padding: 21px 5px 18px; border-radius: 0; border-bottom: 3px solid transparent;
+  font-size: 14px; color: var(--mm-sub); background: transparent; white-space: nowrap;
+}
+#market-map-template .primary-nav button[aria-current="page"] {
+  border-bottom-color: var(--mm-brand); color: var(--mm-brand); font-weight: 650;
+}
+.workspace-header > details { margin-left: auto; }
+.workspace-main { width: min(100%, 1660px); margin: auto; padding: 18px clamp(14px, 3vw, 52px) 32px; }
+.workspace-context { flex-wrap: wrap; gap: 8px 14px; padding-bottom: 14px; border-bottom: 1px solid var(--mm-line); }
+.scope-caption { color: var(--mm-sub); font-size: 12px; margin-right: 8px; }
+#mm-product-title { font-weight: 600; }
+.workspace-menu { position: relative; }
+.workspace-menu summary {
+  list-style: none; cursor: pointer; color: var(--mm-sub); border-radius: 6px;
+  padding: 6px 8px; user-select: none;
+}
+.workspace-menu summary::-webkit-details-marker { display: none; }
+.workspace-menu summary::after { content: '⌄'; display: inline-block; margin-left: 6px; font-size: 13px; }
+.workspace-menu summary:hover, .workspace-menu[open] > summary { background: var(--mm-soft); color: var(--mm-ink); }
+.workspace-menu-list, .filter-list {
+  position: absolute; z-index: 15; top: calc(100% + 5px); left: 0; min-width: 156px;
+  padding: 6px; border-radius: 9px; border: 1px solid var(--mm-line); background: var(--mm-bg);
+  box-shadow: 0 8px 24px #17271d22; max-height: 65vh; overflow: auto;
+}
+#mm-admin-menu .workspace-menu-list, .filter-list { left: auto; right: 0; }
+#market-map-template .workspace-menu-list button {
+  display: block; width: 100%; border: 0; border-radius: 4px; overflow-wrap: anywhere; padding: 7px 9px;
+}
+#market-map-template .workspace-menu-list button[aria-current="page"] { background: var(--mm-tint); color: var(--mm-brand); }
+#market-map-template .scope-project { font-weight: 640; }
+#market-map-template .scope-product { padding-left: 22px; }
+.workspace-page-title { font-size: clamp(20px, 2.2vw, 28px); font-weight: 650; margin: 20px 0 12px; }
+.workspace-controls { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+#mm-filter-summary { color: var(--mm-sub); font-size: 12px; }
+.filter-list { width: min(270px, 76vw); padding: 12px; display: grid; gap: 8px; }
+#mm-view-fields, #mm-view-backup, #mm-view-updates, #mm-view-feishu { margin-top: 18px; }
+#mm-tab-fields { margin: 12px 0; }
+#market-map-template button, #market-map-template summary { cursor: pointer; }
+#market-map-template button:disabled { cursor: default; }
+#market-map-template :focus-visible { outline: 2px solid var(--mm-brand); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .workspace-header { flex-wrap: wrap; gap: 0 6px; padding-top: 10px; }
+  .workspace-brand { font-size: 16px; }
+  .primary-nav { order: 3; width: 100%; justify-content: space-between; }
+  #market-map-template .primary-nav button { padding: 12px 3px 9px; }
+  .workspace-main { padding-top: 10px; }
+  .workspace-context { gap: 3px 5px; }
+  .scope-caption { display: none; }
+  .workspace-controls { max-width: 100%; }
+  .filter-list { position: fixed; top: auto; right: 12px; }
+}

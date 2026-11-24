@@ -7,7 +7,7 @@ import vm from 'node:vm';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
-for (const file of ['src/app.js', 'src/state.js', 'src/updates.js']) {
+for (const file of [...read('index.html').matchAll(/<script src="\.\/([^"]+)"/g)].map(match => match[1])) {
   const result = spawnSync(process.execPath, ['--check', resolve(root, file)], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
 }

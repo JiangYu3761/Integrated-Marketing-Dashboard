@@ -22,6 +22,7 @@ const { chromium } = require('playwright');
 
   try {
     await page.goto(process.env.DASHBOARD_TEST_URL || 'http://127.0.0.1:8877/', { waitUntil: 'networkidle' });
+    await page.locator('#mm-admin-menu summary').click();
     await page.locator('#mm-tab-people').click();
     for (const name of ['测试人员甲', '测试人员乙']) {
       await page.locator('#mm-person-add').click();
@@ -30,7 +31,9 @@ const { chromium } = require('playwright');
     }
     const [person, second] = (await state()).data.people;
     await page.locator('#mm-tab-time').click();
+    await page.locator('#mm-filters summary').click();
     await page.locator('#mm-role-filter').selectOption(person.role);
+    if (await page.locator('#mm-role-filter').isVisible()) await page.locator('#mm-filters summary').click();
     await page.locator('[data-time-scale=day]').click();
     await page.locator('#mm-focus-day').fill('2026-11-01');
     await page.locator('#mm-focus-day').dispatchEvent('change');

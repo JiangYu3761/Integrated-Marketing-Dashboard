@@ -29,7 +29,7 @@
   automatic.addEventListener('change', () => send({ action: 'automatic', enabled: automatic.checked }));
   check.addEventListener('click', () => send({ action: 'check' }));
   // The native updater waits until task/settings editors have saved or closed.
-  window.dashboardCanInstallUpdate = () => !document.querySelector('dialog[open], #mm-config:not([hidden]), [popover]:popover-open');
+  window.dashboardCanInstallUpdate = () => !window.projectState.hasDirty() && !document.querySelector('dialog[open], #mm-config:not([hidden]), #mm-feishu-config[open], [popover]:popover-open');
   window.dashboardSetUpdateLock = locked => { document.getElementById('market-map-template').inert = locked === true; };
   send({ action: 'status' });
 })();

@@ -4,47 +4,84 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
   <title>跨境电商产品经营地图</title>
   <link rel="stylesheet" href="./src/app.css">
   <script src="./src/state.js" defer></script>
+  <link rel="stylesheet" href="./src/workspace.css">
+  <link rel="stylesheet" href="./src/calendar.css">
+  <link rel="stylesheet" href="./src/reports.css">
+  <link rel="stylesheet" href="./src/feishu.css">
+  <script src="./src/calendar.js" defer></script>
+  <script src="./src/reports.js" defer></script>
+  <script src="./src/feishu.js" defer></script>
   <script src="./src/app.js" defer></script>
   <script src="./src/updates.js" defer></script>
 </head>
 <body>
-<div id="market-map-template" aria-label="跨境电商产品经营地图空白模板">
-  <header class="mm-top"><div><span class="mm-title">C端产品经营地图</span><span class="mm-label">消费者 · 增长 · 供应 · 现金</span></div></header>
-  <div class="mm-shell">
-    <aside class="mm-side" aria-label="产品目录">
-      <span class="mm-label">产品目录</span>
-      <button type="button" data-product="*" class="cursor-interaction">全产品总览</button>
-      <div id="mm-products"></div>
-      <button type="button" id="mm-new-product" class="cursor-interaction">＋ 空白产品</button>
-      <div class="mm-side-bottom"><button type="button" id="mm-settings" class="cursor-interaction">模板设置</button></div>
-    </aside>
-    <main class="mm-main">
-      <div class="mm-heading"><div id="mm-product-title" class="mm-product-title">空白产品模板</div><span class="mm-label">空白模板</span></div>
-      <nav class="mm-tabs" aria-label="项目视图" role="tablist">
-        <button id="mm-tab-time" type="button" role="tab" aria-controls="mm-view-time" aria-selected="true" data-view="time" class="cursor-interaction">产品时间地图</button>
-        <button id="mm-tab-marketing" type="button" role="tab" aria-controls="mm-view-marketing" aria-selected="false" data-view="marketing" class="cursor-interaction">整合营销</button>
-        <button id="mm-tab-ceo" type="button" role="tab" aria-controls="mm-view-ceo" aria-selected="false" data-view="ceo" class="cursor-interaction">经营主线</button>
-        <button id="mm-tab-map" type="button" role="tab" aria-controls="mm-view-map" aria-selected="false" data-view="map" class="cursor-interaction">阶段矩阵</button>
-        <button id="mm-tab-table" type="button" role="tab" aria-controls="mm-view-table" aria-selected="false" data-view="table" class="cursor-interaction">任务表格</button>
-        <button id="mm-tab-people" type="button" role="tab" aria-controls="mm-view-people" aria-selected="false" data-view="people" class="cursor-interaction">人员管理</button>
-        <button id="mm-tab-projects" type="button" role="tab" aria-controls="mm-view-projects" aria-selected="false" data-view="projects" class="cursor-interaction">项目管理</button>
-        <button id="mm-tab-fields" type="button" role="tab" aria-controls="mm-view-fields" aria-selected="false" data-view="fields" class="cursor-interaction">数据与同步</button>
-      </nav>
-      <div id="mm-config" class="mm-panel" hidden></div>
-      <dialog id="mm-task-dialog" aria-labelledby="mm-task-heading"><div id="mm-editor" class="mm-panel" hidden></div></dialog>
-      <section id="mm-view-marketing" role="tabpanel" aria-labelledby="mm-tab-marketing"></section>
-      <section id="mm-view-ceo" class="mm-exec" role="tabpanel" aria-labelledby="mm-tab-ceo"></section>
-      <div id="mm-controls" class="mm-controls">
+<div id="market-map-template" aria-label="产品经营地图">
+  <header class="workspace-header">
+    <div class="workspace-brand"><span class="brand-icon" aria-hidden="true"></span>产品经营地图</div>
+    <nav class="primary-nav" aria-label="工作区">
+      <button id="mm-tab-calendar" type="button" data-view="calendar">工作日历</button>
+      <button id="mm-tab-report" type="button" data-view="report">日报</button>
+      <button id="mm-tab-time" type="button" data-view="time">产品时间地图</button>
+      <button id="mm-tab-feishu" type="button" data-view="feishu">飞书同步总表</button>
+    </nav>
+    <details id="mm-admin-menu" class="workspace-menu">
+      <summary>管理</summary><div class="workspace-menu-list">
+        <button id="mm-tab-projects" type="button" data-view="projects">项目管理</button>
+        <button id="mm-tab-people" type="button" data-view="people">人员管理</button>
+        <button id="mm-settings" type="button">模板设置</button>
+        <button id="mm-tab-backup" type="button" data-view="backup">备份与恢复</button>
+        <button id="mm-tab-updates" type="button" data-view="updates">应用更新</button>
+      </div>
+    </details>
+  </header>
+  <main class="workspace-main">
+    <div class="workspace-context">
+      <details id="mm-scope-menu" class="workspace-menu">
+        <summary><span class="scope-caption">项目 / 产品</span><span id="mm-product-title"></span></summary>
+        <div class="workspace-menu-list">
+          <button type="button" data-product="*">全产品总览</button>
+          <div id="mm-products"></div>
+          <button type="button" id="mm-new-product">＋ 新建产品</button>
+          <button type="button" id="mm-manage-project">管理当前项目</button>
+        </div>
+      </details>
+      <details id="mm-product-menu" class="workspace-menu">
+        <summary>产品工具</summary><div class="workspace-menu-list">
+          <button id="mm-tab-marketing" type="button" data-view="marketing">整合营销</button>
+          <button id="mm-tab-ceo" type="button" data-view="ceo">经营主线</button>
+          <button id="mm-tab-map" type="button" data-view="map">阶段矩阵</button>
+          <button id="mm-tab-table" type="button" data-view="table">任务表格</button>
+        </div>
+      </details>
+      <div id="mm-controls" class="workspace-controls" hidden>
+        <details id="mm-filters" class="workspace-menu"><summary>筛选</summary><div class="filter-list">
         <label>分组<select id="mm-group" aria-label="纵向分组"><option value="module">业务板块</option><option value="lane">渠道与公共工作</option><option value="role">岗位</option><option value="owner">负责人</option></select></label>
         <label>板块<select id="mm-module-filter" aria-label="板块筛选"></select></label>
         <label>岗位筛选<select id="mm-role-filter" aria-label="岗位筛选"></select></label>
         <label>状态筛选<select id="mm-status-filter" aria-label="状态筛选"><option value="">全部状态</option><option>待开始</option><option>进行中</option><option>待验收</option><option>已完成</option><option>受阻</option></select></label>
+        <label>阶段<select id="mm-phase-filter"></select></label>
+        <label>渠道<select id="mm-channel-filter"></select></label>
+        <label>市场<select id="mm-market-filter"></select></label>
+        </div></details><span id="mm-filter-summary"></span>
+        <button type="button" id="mm-clear-filters" hidden>清除筛选</button>
         <button type="button" id="mm-add-task" class="mm-primary mm-action cursor-interaction">＋ 任务</button>
       </div>
+    </div>
+      <div id="mm-config" class="mm-panel" hidden></div>
+      <dialog id="mm-task-dialog" aria-labelledby="mm-task-heading"><div id="mm-editor" class="mm-panel" hidden></div></dialog>
+    <h1 id="mm-view-title" class="workspace-page-title" hidden></h1>
+    <section id="mm-view-calendar" aria-labelledby="mm-tab-calendar"></section>
+    <section id="mm-view-report" aria-labelledby="mm-tab-report" hidden></section>
+    <section id="mm-view-feishu" aria-labelledby="mm-tab-feishu" hidden>
+      <div id="mm-feishu-content"></div><button id="mm-tab-fields" type="button" data-view="fields">查看字段与同步规则</button>
+    </section>
+    <section id="mm-view-backup" aria-labelledby="mm-tab-backup" hidden><div id="mm-backup"></div></section>
+      <section id="mm-view-marketing" role="tabpanel" aria-labelledby="mm-tab-marketing"></section>
+      <section id="mm-view-ceo" class="mm-exec" role="tabpanel" aria-labelledby="mm-tab-ceo"></section>
       <section id="mm-view-map" role="tabpanel" aria-labelledby="mm-tab-map">
         <div class="mm-meta"><span id="mm-map-summary">渠道／公共工作 × 产品阶段</span><span>阶段可修改 · 任务可拖动归类</span></div>
         <div id="mm-map" class="mm-map" aria-label="渠道与阶段工作地图"></div>
@@ -55,14 +92,14 @@
       <section id="mm-view-people" role="tabpanel" aria-labelledby="mm-tab-people" hidden></section>
       <section id="mm-view-projects" role="tabpanel" aria-labelledby="mm-tab-projects" hidden></section>
       <section id="mm-view-fields" role="tabpanel" aria-labelledby="mm-tab-fields" hidden></section>
-      <div id="mm-announcement" aria-live="polite" class="mm-label"></div>
-    </main>
-  </div>
+<section id="mm-view-updates" aria-labelledby="mm-tab-updates" hidden>
   <section id="mm-updates" class="mm-updates" aria-labelledby="mm-update-heading">
     <div class="mm-update-copy"><h2 id="mm-update-heading">应用更新</h2><p id="mm-update-version">浏览器模式</p><p id="mm-update-status" role="status" aria-live="polite">请在独立 Mac 应用中检查和安装更新。</p></div>
     <div class="mm-update-actions"><label><input id="mm-update-auto" type="checkbox" disabled>自动检查并安装更新</label><button id="mm-update-check" type="button" disabled>检查更新</button><span id="mm-update-time"></span></div>
   </section>
-  <footer class="mm-footer"><span>空白模板</span><span>OpenProject／飞书／API：未连接</span></footer>
+  </section>
+  <div id="mm-announcement" aria-live="polite" class="mm-label"></div>
+  </main>
 </div>
 </body>
 </html>

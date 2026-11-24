@@ -37,6 +37,16 @@ jobs:
         run: python3 scripts/ci_run.py python3 tests/macos_smoke.py
       - name: Package architecture-specific update
         run: python3 scripts/ci_run.py python3 scripts/package_macos_update.py --tag "$RELEASE_TAG"
+      - name: Check out the previous local-install version
+        uses: actions/checkout@v4
+        with:
+          ref: ec5cc163d1d93c7b79d7e8093a5c9405d210a563
+          path: outputs/upgrade-baseline
+          persist-credentials: false
+      - name: Upgrade a signed 1.1.2 app and restore its task data
+        run: |
+          python3 scripts/ci_run.py python3 outputs/upgrade-baseline/scripts/install_macos_app.py --build-only
+          python3 scripts/ci_run.py python3 tests/macos_upgrade.py --baseline-app "outputs/upgrade-baseline/outputs/macos/产品经营地图.app"
       - uses: actions/upload-artifact@v4
         with:
           name: update-${{ matrix.os }}

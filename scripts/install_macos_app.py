@@ -123,7 +123,7 @@ def main():
         executable.parent.mkdir(parents=True)
         resources.mkdir()
         copy_site(resources / "site")
-        for name in ["local_server.py", "updater.py"]:
+        for name in ["local_server.py", "updater.py", "feishu.py"]:
             shutil.copy2(ROOT / "desktop/macos" / name, resources / name)
         app_version = json.loads((ROOT / "desktop/macos/version.json").read_text())["version"]
         version_tuple(app_version)

@@ -57,6 +57,8 @@ jobs:
           node scripts/check.mjs
           node tests/day-view.cjs
           node tests/updates.cjs
+          node tests/workspace.cjs
+          node tests/storage.cjs
   build:
     strategy:
       fail-fast: false

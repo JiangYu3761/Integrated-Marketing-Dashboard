@@ -3,7 +3,7 @@
  const root=document.getElementById('market-map-template');
  const $=s=>root.querySelector(s);
  function closeTaskEditor(){const dialog=$('#mm-task-dialog');if(dialog?.open)dialog.close();$('#mm-editor').hidden=true;}
- $('#mm-task-dialog').addEventListener('close',()=>{$('#mm-editor').hidden=true;});
+ $('#mm-task-dialog').addEventListener('close',event=>{if(!event.currentTarget.open)$('#mm-editor').hidden=true;});
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const phases=['需求与产品','上市就绪','获客与成交','交付与体验','复购与迭代'];
  const moduleCatalog=[
@@ -29,35 +29,52 @@
  const initial={version:5,modules:structuredClone(moduleCatalog),projects:[{id:'j1',name:'项目模板',status:'未开始',ownerId:'',start:'',end:''}],people:[],products:[{id:'p1',name:'产品模板',projectId:'j1'}],phases,
  lanes:[{id:'l1',name:'产品规划与公共素材',kind:'公共工作'},{id:'l8',name:'产品验证与质量',kind:'公共工作'},{id:'l2',name:'平台／店铺 · 待配置',kind:'渠道工作'},{id:'l3',name:'独立站 · 待配置',kind:'渠道工作'},{id:'l4',name:'站外营销 · 待配置',kind:'渠道工作'},{id:'l5',name:'采购、库存与履约',kind:'公共工作'},{id:'l6',name:'客户服务与账户合规',kind:'公共工作'},{id:'l7',name:'经营数据与利润',kind:'公共工作'}],
  roles:['经营负责人','市场策划','产品与体验','质量与认证','内容与设计','广告与增长','平台运营','采购与库存','物流履约','客户服务','账户合规','数据与利润'],tasks:[]};
- let data=structuredClone(initial),ui={project:'j1',product:'p1',view:'time',group:'role',module:'',role:'',status:'',channel:'',market:'',phaseFilter:'',timelines:{},roleExpanded:{},day:'',dayPerson:'',quick:null};
+ let data=structuredClone(initial),ui={project:'j1',product:'p1',view:'calendar',group:'role',module:'',role:'',status:'',channel:'',market:'',phaseFilter:'',timelines:{},roleExpanded:{},day:'',dayPerson:'',quick:null};
  let editId=null,dragged=null;
  function restore(state){const x=state?.privateContent;if(x?.data&&[1,2,3,4,5].includes(x.data.version)&&Array.isArray(x.data.products)&&x.data.products.length&&Array.isArray(x.data.tasks)&&Array.isArray(x.data.lanes)&&Array.isArray(x.data.phases)&&x.data.phases.length){const legacy=x.data.version<4;data=structuredClone(x.data);data.version=5;if(!Array.isArray(data.modules))data.modules=structuredClone(moduleCatalog);ui={...ui,...x.ui,quick:null};ensureRecords();if(legacy){ui.view='time';ui.group='role';}if(ui.product!=='*'&&!data.products.some(p=>p.id===ui.product))ui.product=data.products[0].id;}}
- restore(window.projectState.read());
- function save(){const s={modelContent:{template:'跨境电商市场部产品经营地图',selectedView:ui.view,groupBy:ui.group,phases:data.phases,lanes:data.lanes.map(l=>l.name)},privateContent:{data,ui}};try{window.projectState.write(s);}catch(error){console.error('本地保存失败',error);announce('本地保存失败，请检查浏览器存储空间。');}}
+ const defaultUi=structuredClone(ui);
+ let storageError='';
+ const storedState=window.projectState.read();
+ if(storedState){
+  try{window.projectState.inspectBackup(storedState);restore(storedState);}
+  catch(error){
+   data=structuredClone(initial);ui=structuredClone(defaultUi);
+   window.projectState.protectOriginal();
+   storageError='原有数据未能读取，请在备份与恢复中导入有效备份。';
+   queueMicrotask(()=>announce(storageError));
+  }
+ }
+ function snapshot(){return {modelContent:{template:'跨境电商市场部产品经营地图',selectedView:ui.view,groupBy:ui.group,phases:data.phases,lanes:data.lanes.map(l=>l.name)},privateContent:{data,ui:{...ui,quick:null}}};}
+ function save(options){
+  try{
+   window.projectState.write(snapshot(), options);
+   storageError='';window.projectState.setDirty('workspace',false);
+   window.dispatchEvent(new CustomEvent('dashboard-saved'));
+   return true;
+  }catch(error){
+   console.error('本地保存失败',error);
+   storageError=error.name==='QuotaExceededError'?'本机存储空间不足，请导出备份并重试。':('本地保存失败，请导出备份并重试。'+(error.message||''));
+   window.projectState.setDirty('workspace',true);
+   announce(storageError);
+   return false;
+  }
+ }
  const uid=()=>String(Date.now())+Math.random().toString(36).slice(2,6);
  const laneName=id=>data.lanes.find(l=>l.id===id)?.name||'待配置';
  const productName=id=>data.products.find(p=>p.id===id)?.name||'待配置';
  const options=(arr,value)=>arr.map(a=>`<option value="${esc(a.value??a)}" ${(a.value??a)===value?'selected':''}>${esc(a.label??a)}</option>`).join('');
  const productInScope=id=>(ui.product==='*'?(!ui.project||data.products.some(p=>p.id===id&&p.projectId===ui.project)):id===ui.product);
  const visible=()=>data.tasks.filter(t=>productInScope(t.product)&&(!ui.module||(ui.module==='~'?!t.module:t.module===ui.module))&&(!ui.role||t.role===ui.role)&&(!ui.channel||t.lane===ui.channel)&&(!ui.market||t.market===ui.market)&&(ui.phaseFilter===''||t.phase===+ui.phaseFilter)).flatMap(t=>{if(!ui.status)return[t];if(Array.isArray(t.dailyWork)&&t.dailyWork.length){const children=t.dailyWork.filter(d=>d.status===ui.status);return children.length?[{...t,dailyWork:children}]:[];}return t.status===ui.status?[t]:[];});
- const announce=t=>{$('#mm-announcement').textContent=t;};
+ const announce=t=>{$('#mm-announcement').textContent=storageError||t;};
  function card(t){return `<button type="button" class="mm-card cursor-interaction" draggable="true" data-task="${esc(t.id)}" data-status="${esc(t.status)}" aria-label="编辑任务：${esc(t.title)}"><span class="mm-card-title">${esc(t.title)}</span><span class="mm-card-meta">${esc(t.role||'岗位待定')} · ${esc(t.owner||'待分配')}</span><span class="mm-card-meta">${esc(t.subphase||'子阶段待定')} · ${esc(t.status)}</span>${t.start||t.end?`<span class="mm-card-meta">${esc(t.start||'待排期')} — ${esc(t.end||'待排期')}</span>`:''}${ui.group!=='lane'?`<span class="mm-card-meta">${esc(laneName(t.lane))}</span>`:''}${ui.product==='*'?`<span class="mm-card-meta">${esc(productName(t.product))}</span>`:''}${t.market?`<span class="mm-card-meta">${esc(t.market)}</span>`:''}${t.depends?'<span class="mm-card-meta">↳ 有前置任务</span>':''}</button>`;}
  function groups(tasks){if(ui.group==='lane')return data.lanes.map(l=>({id:l.id,name:l.name,kind:l.kind}));if(ui.group==='role'){const roles=[...new Set([...data.roles,...tasks.map(t=>t.role).filter(Boolean)])];return [...roles.map(r=>({id:r,name:r,kind:'岗位'})),{id:'',name:'岗位待分配',kind:'岗位'}];}const names=[...new Set(tasks.map(t=>t.owner).filter(Boolean))];return [...names.map(n=>({id:n,name:n,kind:'负责人'})),{id:'',name:'待分配人员',kind:'负责人'}];}
  function groupValue(t){return ui.group==='lane'?t.lane:ui.group==='role'?t.role:t.owner;}
  function renderMap(tasks){const rows=groups(tasks);$('#mm-map').style.setProperty('--mm-phase-count',data.phases.length);$('#mm-map-summary').textContent=ui.group==='module'?'业务板块 × 阶段':ui.group==='lane'?'渠道／公共工作 × 阶段':ui.group==='role'?'岗位 × 产品阶段':'负责人 × 产品阶段';$('#mm-map').innerHTML=`<div class="mm-gridrow mm-gridhead"><div>${ui.group==='module'?'业务板块':ui.group==='lane'?'渠道':ui.group==='role'?'岗位':'负责人'} ↓ · 阶段 →</div>${data.phases.map(p=>`<div>${esc(p)}</div>`).join('')}</div>`+rows.map((g,gi)=>`<div class="mm-gridrow"><div class="mm-row-label">${esc(g.name)}<small>${esc(g.kind)}</small></div>${data.phases.map((p,pi)=>{const ts=tasks.filter(t=>groupValue(t)===g.id&&t.phase===pi);return `<div class="mm-cell" data-phase="${pi}" data-group-index="${gi}"><span class="mm-mobile-stage">${esc(p)}</span>${ts.map(card).join('')}<button type="button" class="mm-add cursor-interaction" data-new-phase="${pi}" data-new-group="${gi}" aria-label="在${esc(g.name)}的${esc(p)}阶段添加任务">＋ ${ts.length?'任务':'添加工作'}</button></div>`;}).join('')}</div>`).join('');$('#mm-map').querySelectorAll('[data-new-phase]').forEach(b=>b.addEventListener('click',()=>{const g=rows[+b.dataset.newGroup];openTask(null,{phase:+b.dataset.newPhase,...(ui.group==='module'?{module:g.id}:ui.group==='lane'?{lane:g.id}:ui.group==='role'?{role:g.id}:{owner:g.id})});}));$('#mm-map').querySelectorAll('[data-task]').forEach(b=>{b.addEventListener('click',()=>openTask(b.dataset.task));b.addEventListener('dragstart',e=>{dragged=b.dataset.task;e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';});b.addEventListener('dragend',()=>{dragged=null;root.querySelectorAll('.mm-drop').forEach(x=>x.classList.remove('mm-drop'));});});$('#mm-map').querySelectorAll('.mm-cell').forEach(c=>{c.addEventListener('dragover',e=>{if(dragged){e.preventDefault();c.classList.add('mm-drop');}});c.addEventListener('dragleave',()=>c.classList.remove('mm-drop'));c.addEventListener('drop',e=>{e.preventDefault();const t=data.tasks.find(x=>x.id===dragged);if(!t)return;t.phase=+c.dataset.phase;const g=rows[+c.dataset.groupIndex];if(ui.group==='module')t.module=g.id;else if(ui.group==='lane')t.lane=g.id;else if(ui.group==='role')t.role=g.id;else {const person=data.people.find(p=>p.name===g.id);t.owner=person?.name||g.id;t.personId=person?.id||'';if(person)t.role=person.role;}dragged=null;save();render();announce('已调整归类。');});});}
  function renderTable(tasks){$('#mm-view-table').innerHTML=`<div class="mm-taskline mm-listhead"><span>任务／阶段</span><span>岗位／负责人</span><span>渠道或公共工作</span><span>时间／状态</span></div>`+(tasks.length?`<ul class="mm-tasklist">${tasks.map(t=>`<li class="mm-taskline"><span><button type="button" data-task="${esc(t.id)}" class="cursor-interaction">${esc(t.title)}</button><br>${esc(data.phases[t.phase])} · ${esc(t.subphase||'子阶段待定')}</span><span>${esc(t.role||'岗位待定')}<br>${esc(t.owner||'待分配')}</span><span>${esc(laneName(t.lane))}${ui.product==='*'?'<br>'+esc(productName(t.product)):''}</span><span>${esc(t.start||'未排期')} — ${esc(t.end||'未排期')}<br>${esc(t.status)}</span></li>`).join('')}</ul>`:'<div class="mm-empty"><strong>暂无任务</strong></div>');$('#mm-view-table').querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>openTask(b.dataset.task));}
  function renderTime(tasks){const dated=tasks.filter(t=>t.start&&t.end),undated=tasks.filter(t=>!t.start||!t.end);if(!dated.length){$('#mm-view-time').innerHTML='<div class="mm-empty"><strong>暂无排期</strong></div>';return;}const day=86400000,start=Math.min(...dated.map(t=>Date.parse(t.start+'T00:00:00Z'))),end=Math.max(...dated.map(t=>Date.parse(t.end+'T00:00:00Z')))+day,span=Math.max(day,end-start);$('#mm-view-time').innerHTML=`<div class="mm-time-axis"><span>${new Date(start).toISOString().slice(0,10)}</span><span>任务时间范围</span><span>${new Date(end-day).toISOString().slice(0,10)}</span></div>`+dated.map(t=>{const left=(Date.parse(t.start+'T00:00:00Z')-start)/span*100,width=(Date.parse(t.end+'T00:00:00Z')+day-Date.parse(t.start+'T00:00:00Z'))/span*100;return `<div class="mm-time-task"><div class="mm-time-caption"><span>${esc(t.title)} · ${esc(t.role||'岗位待定')}／${esc(t.owner||'待分配')}</span><span>${esc(t.start)} — ${esc(t.end)}</span></div><div class="mm-time-track"><button type="button" class="mm-time-bar cursor-interaction" data-task="${esc(t.id)}" style="left:${left}%;width:${width}%" aria-label="修改${esc(t.title)}的日期"></button></div></div>`;}).join('')+(undated.length?`<div class="mm-label">另有 ${undated.length} 项工作尚未完整排期。</div>`:'');$('#mm-view-time').querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>openTask(b.dataset.task));}
- function renderFields(){const tables=[['产品表','产品、市场／国家、产品负责人、经营阶段'],['任务表','产品、市场／站点、板块、渠道、岗位、负责人、阶段、排期、状态、前置任务、交付与验收'],['板块与渠道配置表','营销板块、经营协同、渠道、岗位、子阶段'],['库存与履约记录表','产品／SKU、国家、仓库、库存口径、数量、统计时间'],['渠道经营记录表','产品、市场、渠道／店铺、指标名称、数值、统计周期'],['同步对应表','两边记录的对应关系、来源、最后同步结果']];$('#mm-view-fields').innerHTML='<div class="mm-meta"><span>飞书表结构</span><span>空白字段</span></div><div class="mm-fields">'+tables.map(([a,b])=>`<div class="mm-field-item"><strong>${a}</strong><span>${b}</span></div>`).join('')+'</div>';}
- function render(){if(!['marketing','ceo','map','time','table','people','projects','fields'].includes(ui.view))ui.view='ceo';$('#mm-products').innerHTML=data.products.map(p=>`<button type="button" data-product="${esc(p.id)}" class="cursor-interaction">${esc(p.name)}</button>`).join('');root.querySelectorAll('[data-product]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.product===ui.product));b.onclick=()=>{ui.product=b.dataset.product;closeTaskEditor();$('#mm-config').hidden=true;save();render();};});$('#mm-product-title').textContent=ui.product==='*'?'全产品经营总览':productName(ui.product);root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.view===ui.view)));['marketing','ceo','map','time','table','people','projects','fields'].forEach(v=>$('#mm-view-'+v).hidden=v!==ui.view);$('#mm-controls').hidden=ui.view==='fields';$('#mm-group').value=ui.group;$('#mm-role-filter').innerHTML='<option value="">全部岗位</option>'+options([...new Set([...data.roles,...data.tasks.map(t=>t.role).filter(Boolean)])],ui.role);$('#mm-role-filter').value=ui.role;$('#mm-status-filter').value=ui.status;const tasks=visible();renderMap(tasks);renderTable(tasks);renderTime(tasks);renderFields();}
+ function renderFields(){const tables=[['产品表','产品、市场／国家、产品负责人、经营阶段'],['任务表','产品、市场／站点、板块、渠道、岗位、负责人、阶段、排期、状态、前置任务、交付与验收'],['板块与渠道配置表','营销板块、经营协同、渠道、岗位、子阶段'],['库存与履约记录表','产品／SKU、国家、仓库、库存口径、数量、统计时间'],['渠道经营记录表','产品、市场、渠道／店铺、指标名称、数值、统计周期'],['同步对应表','两边记录的对应关系、来源、最后同步结果']];$('#mm-view-fields').innerHTML='<div class="mm-meta"><span>数据模型</span><span>业务记录与关联字段</span></div><div class="mm-fields">'+tables.map(([a,b])=>`<div class="mm-field-item"><strong>${a}</strong><span>${b}</span></div>`).join('')+'</div>';}
  function openTask(id,defaults={}){editId=id;$('#mm-config').hidden=true;const existing=data.tasks.find(t=>t.id===id);const t=existing?structuredClone(existing):{id:'',product:ui.product==='*'?data.products[0].id:ui.product,title:'',lane:data.lanes[0].id,phase:0,subphase:'',market:'',role:'',owner:'',start:'',end:'',status:'待开始',depends:'',delivery:'',...defaults};const deps=data.tasks.filter(x=>x.product===t.product&&x.id!==id);$('#mm-editor').hidden=false;$('#mm-editor').innerHTML=`<h3>${id?'修改工作':'添加工作'}</h3><form id="mm-task-form"><div class="mm-form-grid"><label class="mm-form-wide">任务名称<input name="title" required maxlength="100" value="${esc(t.title)}" placeholder="任务名称"></label><label>所属产品<select name="product">${options(data.products.map(p=>({value:p.id,label:p.name})),t.product)}</select></label><label>渠道／公共工作<select name="lane">${options(data.lanes.map(l=>({value:l.id,label:l.name})),t.lane)}</select></label><label>产品阶段<select name="phase">${options(data.phases.map((p,i)=>({value:String(i),label:p})),String(t.phase))}</select></label><label>渠道或流程子阶段<input name="subphase" maxlength="60" value="${esc(t.subphase)}" placeholder="子阶段"></label><label>适用市场／站点<input name="market" maxlength="60" value="${esc(t.market)}" placeholder="国家、站点或跨市场"></label><label>主责岗位<select name="role"><option value="">待分配岗位</option>${options([...new Set([...data.roles,t.role].filter(Boolean))],t.role)}</select></label><label>主负责人<input name="owner" maxlength="40" value="${esc(t.owner)}" placeholder="姓名待填写"></label><label>开始日期<input name="start" type="date" value="${esc(t.start)}"></label><label>结束日期<input name="end" type="date" value="${esc(t.end)}"></label><label>工作状态<select name="status">${options(['待开始','进行中','待验收','已完成','受阻'],t.status)}</select></label><label class="mm-form-wide">前置任务<select name="depends"><option value="">无／待设置</option>${options(deps.map(x=>({value:x.id,label:laneName(x.lane)+' · '+x.title})),t.depends)}</select></label><label class="mm-form-wide">交付物与验收要求<textarea name="delivery" maxlength="600" placeholder="交付物与完成条件">${esc(t.delivery)}</textarea></label></div><div id="mm-task-error" class="mm-error" role="alert"></div><div class="mm-buttons"><button type="button" id="mm-save-task" class="mm-primary cursor-interaction">保存</button><button type="button" id="mm-cancel-task" class="cursor-interaction">取消</button>${id?'<button type="button" id="mm-delete-task" class="mm-delete cursor-interaction">删除此任务</button>':''}</div></form>`;$('#mm-cancel-task').onclick=()=>{closeTaskEditor();};$('#mm-task-form [name=product]').onchange=e=>{const possible=data.tasks.filter(x=>x.product===e.target.value&&x.id!==id);$('#mm-task-form [name=depends]').innerHTML='<option value="">无／待设置</option>'+options(possible.map(x=>({value:x.id,label:laneName(x.lane)+' · '+x.title})),null);};$('#mm-task-form').onsubmit=e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));if(f.start&&f.end&&f.start>f.end){$('#mm-task-error').textContent='结束日期不能早于开始日期。';return;}if(!f.title.trim()){$('#mm-task-error').textContent='请填写任务名称。';return;}const next={...t,...f,id:id||'t'+uid(),title:f.title.trim(),owner:f.owner.trim(),phase:+f.phase};if(next.depends){let cur=next.depends,seen=new Set([next.id]);while(cur){if(seen.has(cur)){$('#mm-task-error').textContent='前置任务不能形成循环。';return;}seen.add(cur);cur=data.tasks.find(x=>x.id===cur)?.depends||'';}}if(id)data.tasks=data.tasks.map(x=>x.id===id?next:x);else data.tasks.push(next);if(ui.role&&next.role!==ui.role)ui.role='';if(ui.status&&next.status!==ui.status)ui.status='';closeTaskEditor();save();render();announce('已保存。');};$('#mm-save-task').onclick=()=>$('#mm-task-form').onsubmit({preventDefault(){},target:$('#mm-task-form')});if(id)$('#mm-delete-task').onclick=()=>{data.tasks=data.tasks.filter(x=>x.id!==id);data.tasks.forEach(x=>{if(x.depends===id)x.depends='';});closeTaskEditor();save();render();announce('已删除。');};}
  function openSettings(){const panel=$('#mm-config');closeTaskEditor();panel.hidden=false;panel.innerHTML=`<h3>模板设置</h3><form id="mm-settings-form"><div class="mm-form-grid"><label>产品大阶段（每行一个）<textarea name="phases" rows="6">${esc(data.phases.join('\n'))}</textarea></label><label>渠道工作（每行一个）<textarea name="channels" rows="6">${esc(data.lanes.filter(l=>l.kind==='渠道工作').map(l=>l.name).join('\n'))}</textarea></label><label>岗位（每行一个）<textarea name="roles" rows="6">${esc(data.roles.join('\n'))}</textarea></label></div><div id="mm-settings-error" role="alert" class="mm-error"></div><div class="mm-buttons"><button type="button" id="mm-save-settings" class="mm-primary cursor-interaction">应用结构</button><button type="button" id="mm-close-settings" class="cursor-interaction">关闭</button></div></form>`;$('#mm-close-settings').onclick=()=>panel.hidden=true;$('#mm-settings-form').onsubmit=e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target)),split=v=>v.split('\n').map(x=>x.trim()).filter(Boolean),ps=split(f.phases),cs=split(f.channels),rs=split(f.roles);if(!ps.length||ps.length>6||cs.length>8||!rs.length){$('#mm-settings-error').textContent='请设置 1–6 个产品阶段、最多 8 个渠道，至少 1 个岗位。';return;}if([ps,cs,rs].some(x=>new Set(x).size!==x.length)||[...ps,...cs,...rs].some(x=>x.length>45)){$('#mm-settings-error').textContent='每项不超过 45 个字符，同一组内名称不能重复。';return;}const oldChannels=data.lanes.filter(l=>l.kind==='渠道工作');if(data.tasks.some(t=>t.phase>=ps.length||oldChannels.slice(cs.length).some(l=>l.id===t.lane))){$('#mm-settings-error').textContent='待移除的阶段或渠道已有任务，请先调整任务归属。';return;}const newChannels=cs.map((name,i)=>({id:oldChannels[i]?.id||'l'+uid(),name,kind:'渠道工作'}));data.phases=ps;data.roles=rs;data.lanes=[data.lanes[0],...newChannels,...data.lanes.filter(l=>l.kind==='公共工作').slice(1)];panel.hidden=true;save();render();announce('结构已更新。');};$('#mm-save-settings').onclick=()=>$('#mm-settings-form').onsubmit({preventDefault(){},target:$('#mm-settings-form')});}
- $('#mm-new-product').onclick=()=>{const panel=$('#mm-config');closeTaskEditor();panel.hidden=false;panel.innerHTML='<h3>新建空白产品</h3><form id="mm-product-form"><label>产品名称<input name="name" required maxlength="45" placeholder="名称待填写"></label><div class="mm-buttons"><button type="button" id="mm-save-product" class="mm-primary cursor-interaction">创建空白项目</button><button type="button" id="mm-cancel-product" class="cursor-interaction">取消</button></div></form>';$('#mm-cancel-product').onclick=()=>panel.hidden=true;$('#mm-product-form').onsubmit=e=>{e.preventDefault();const name=e.target.elements.name.value.trim();if(!name)return;const p={id:'p'+uid(),name};data.products.push(p);ui.product=p.id;panel.hidden=true;save();render();announce('已创建。');};$('#mm-save-product').onclick=()=>$('#mm-product-form').onsubmit({preventDefault(){},target:$('#mm-product-form')});};
- $('#mm-settings').onclick=openSettings;
- $('#mm-add-task').onclick=()=>openTask(null);
- root.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ui.view=b.dataset.view;closeTaskEditor();$('#mm-config').hidden=true;save();render();});
- $('#mm-group').onchange=e=>{ui.group=e.target.value;save();render();};
- $('#mm-role-filter').onchange=e=>{ui.role=e.target.value;save();render();};
- $('#mm-status-filter').onchange=e=>{ui.status=e.target.value;save();render();};
  const isAccepted=t=>Boolean(t&&t.status==='已完成'&&(t.kind!=='放行检查'||t.owner&&t.reason&&t.delivery&&t.evidence));
  const scopedTasks=()=>data.tasks.filter(t=>productInScope(t.product));
  function waitReason(t){
@@ -89,8 +106,6 @@
   $('#mm-objective-form [name=product]').onchange=e=>{ui.product=e.target.value;render();openObjective();};
   $('#mm-save-objective').onclick=()=>{const f=Object.fromEntries(new FormData($('#mm-objective-form'))),target=data.products.find(x=>x.id===f.product);for(const key of ['businessOwner','objective','resultMeasure','customerFloor','capitalFloor'])target[key]=f[key].trim();ui.product=target.id;panel.hidden=true;save();render();announce('目标已保存。');};
  }
- const renderOriginal=render;
- render=function(){renderOriginal();$('#mm-view-ceo').hidden=ui.view!=='ceo';$('#mm-controls').hidden=ui.view==='ceo'||ui.view==='fields';renderCEO();};
  const cardOriginal=card;
  card=function(t){const html=cardOriginal(t);return html.replace('</button>',`${t.reason?`<span class="mm-card-meta">目的：${esc(t.reason)}</span>`:'<span class="mm-card-meta mm-attention">缺任务目的</span>'}${t.kind&&t.kind!=='执行任务'?`<span class="mm-card-meta">${esc(t.kind)}</span>`:''}${waitReason(t)?`<span class="mm-card-meta mm-attention">${esc(waitReason(t))}</span>`:''}</button>`);};
  const openTaskOriginal=openTask;
@@ -101,7 +116,7 @@
   $('#mm-task-form').onsubmit=e=>{const f=Object.fromEntries(new FormData(e.target));if(f.status==='已完成'&&f.kind==='放行检查'&&!f.market.trim()){$('#mm-task-error').textContent='请填写适用市场／站点。';return;}if(f.status==='已完成'&&[f.owner,f.reason,f.delivery,f.evidence].some(x=>!x?.trim())){$('#mm-task-error').textContent='请补齐负责人、目的、验收要求和证据。';return;}if(f.status==='已完成'&&f.depends&&!isAccepted(data.tasks.find(x=>x.id===f.depends))){$('#mm-task-error').textContent='前置任务未验收。';return;}submitOriginal(e);};
  };
  const renderFieldsOriginal=renderFields;
- renderFields=function(){renderFieldsOriginal();$('#mm-view-fields').insertAdjacentHTML('beforeend','<div style="margin-top:20px"><h3 style="font-size:14px;font-weight:600">同步规则</h3><div class="mm-sync-row"><strong>任务与排期：OpenProject 为准</strong><span>飞书修改经校验后同步。</span></div><div class="mm-sync-row"><strong>业务数据：来源系统为准，汇总到飞书</strong><span>保留来源、范围、周期和更新时间。</span></div><div class="mm-sync-row"><strong>同步：去重、版本校验、冲突处理</strong><span>仅定义规则，连接器未实现。</span></div><div class="mm-sync-row"><strong>库存流水、账务：由业务系统处理</strong><span>地图记录任务与关联数据。</span></div></div>');};
+ renderFields=function(){renderFieldsOriginal();$('#mm-view-fields').insertAdjacentHTML('beforeend','<div style="margin-top:20px"><h3 style="font-size:14px;font-weight:600">同步规则</h3><div class="mm-sync-row"><strong>OpenProject 排期接口规划</strong><span>OpenProject 接入后启用排期回写。</span></div><div class="mm-sync-row"><strong>业务数据：来源系统为准，汇总到飞书</strong><span>保留来源、范围、周期和更新时间。</span></div><div class="mm-sync-row"><strong>同步：去重、版本校验、冲突处理</strong><span>当前连接状态和单项重试请查看飞书同步总表。</span></div><div class="mm-sync-row"><strong>库存流水、账务：由业务系统处理</strong><span>地图记录任务与关联数据。</span></div></div>');};
  const moduleName=id=>data.modules.find(m=>m.id===id)?.name||'未归类';
  function renderMarketing(){
   const tasks=scopedTasks();
@@ -113,8 +128,6 @@
  groups=function(tasks){if(ui.group!=='module')return groupsBeforeModules(tasks);if(ui.module==='~')return[{id:'',name:'未归类',kind:'板块'}];const list=data.modules.filter(m=>!ui.module||m.id===ui.module).map(m=>({id:m.id,name:m.name,kind:m.category}));if(!ui.module&&tasks.some(t=>!t.module))list.push({id:'',name:'未归类',kind:'板块'});return list;};
  const groupValueBeforeModules=groupValue;
  groupValue=function(t){return ui.group==='module'?(t.module||''):groupValueBeforeModules(t);};
- const renderBeforeModules=render;
- render=function(){renderBeforeModules();$('#mm-view-marketing').hidden=ui.view!=='marketing';if(ui.view==='marketing')$('#mm-controls').hidden=true;$('#mm-module-filter').innerHTML='<option value="">全部板块</option>'+options(data.modules.map(m=>({value:m.id,label:m.name})),ui.module)+'<option value="~">未归类</option>';$('#mm-module-filter').value=ui.module;renderMarketing();};
  const openTaskBeforeModules=openTask;
  openTask=function(id,defaults={}){
   const preset={module:ui.module==='~'?'':ui.module,...defaults};openTaskBeforeModules(id,preset);const task=data.tasks.find(t=>t.id===id)||preset;
@@ -126,7 +139,6 @@
  card=function(t){return cardBeforeModules(t).replace('<span class="mm-card-title">',`<span class="mm-card-meta">${esc(moduleName(t.module))}</span><span class="mm-card-title">`);};
  const renderTableBeforeModules=renderTable;
  renderTable=function(tasks){renderTableBeforeModules(tasks);$('#mm-view-table').querySelectorAll('[data-task]').forEach(b=>{const t=data.tasks.find(x=>x.id===b.dataset.task);if(t)b.insertAdjacentHTML('afterend',`<span class="mm-card-meta">${esc(moduleName(t.module))}</span>`);});};
- $('#mm-module-filter').onchange=e=>{ui.module=e.target.value;save();render();};
  // Monthly product map. Zoom changes the time scale and the amount of visible detail.
  const DAY=86400000;
  const dateNumber=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s)?Date.parse(s+'T00:00:00Z'):NaN;
@@ -281,21 +293,8 @@
    const saved=id?data.tasks.find(t=>t.id===id):data.tasks.find(t=>!before.has(t.id));if(saved){saved.dailyWork=entries;if(ui.phaseFilter!==''&&saved.phase!==+ui.phaseFilter)ui.phaseFilter='';if(ui.channel&&saved.lane!==ui.channel)ui.channel='';if(ui.market&&saved.market!==ui.market)ui.market='';render();save();}
   };
  };
- const renderBeforeTimeline=render;
- render=function(){
-  renderBeforeTimeline();$('#mm-group').closest('label').hidden=ui.view!=='map';
-  if(!$('#mm-channel-filter')){
-   $('#mm-status-filter').closest('label').insertAdjacentHTML('afterend','<label>阶段<select id="mm-phase-filter" aria-label="阶段筛选"></select></label><label>渠道<select id="mm-channel-filter" aria-label="渠道筛选"></select></label><label>市场<select id="mm-market-filter" aria-label="市场筛选"></select></label>');
-   $('#mm-phase-filter').onchange=e=>{ui.phaseFilter=e.target.value;save();render();};
-   $('#mm-channel-filter').onchange=e=>{ui.channel=e.target.value;save();render();};$('#mm-market-filter').onchange=e=>{ui.market=e.target.value;save();render();};
-  }
-  $('#mm-channel-filter').innerHTML='<option value="">全部渠道</option>'+options(data.lanes.map(x=>({value:x.id,label:x.name})),ui.channel);$('#mm-channel-filter').value=ui.channel||'';
-  $('#mm-market-filter').innerHTML='<option value="">全部市场</option>'+options([...new Set(scopedTasks().map(t=>t.market).filter(Boolean))],ui.market);$('#mm-market-filter').value=ui.market||'';
-  $('#mm-phase-filter').innerHTML='<option value="">全部阶段</option>'+options(data.phases.map((x,i)=>({value:String(i),label:x})),ui.phaseFilter);$('#mm-phase-filter').value=ui.phaseFilter;
-  if(ui.view==='time')drawTimeCanvas();
- };
  const renderFieldsBeforeTime=renderFields;
- renderFields=function(){renderFieldsBeforeTime();$('#mm-view-fields').insertAdjacentHTML('beforeend','<div class="mm-field-item"><strong>阶段计划表</strong><span>产品、阶段、计划起止、共同交付与验收；允许跨月、并行。</span></div><div class="mm-field-item"><strong>每日工作表</strong><span>日工作 ID、关联任务 ID、产品、日期、执行人、状态、交付记录。日工作独立保存，同步时按 ID 更新。</span></div><div class="mm-field-item"><strong>时间显示</strong><span>计划和实际分别保存。月份、周、日为同一数据的视图；缩放不改日期、状态或统计周期。</span></div>');};
+ renderFields=function(){renderFieldsBeforeTime();$('#mm-view-fields').insertAdjacentHTML('beforeend','<div class="mm-field-item"><strong>阶段计划表</strong><span>产品、阶段、计划起止、共同交付与验收；允许跨月、并行。</span></div><div class="mm-field-item"><strong>每日工作表</strong><span>日工作 ID、关联任务 ID、产品、日期、执行人、状态、交付记录。日工作独立保存，通过稳定 ID 关联。</span></div><div class="mm-field-item"><strong>时间显示</strong><span>计划和实际分别保存。月份、周、日为同一数据的视图；缩放不改日期、状态或统计周期。</span></div>');};
  const renderTableBeforeDaily=renderTable;
  renderTable=function(tasks){renderTableBeforeDaily(tasks);$('#mm-view-table').querySelectorAll('[data-task]').forEach(b=>{const t=data.tasks.find(x=>x.id===b.dataset.task);if(!t)return;if(dailyOf(t).length)b.insertAdjacentHTML('afterend',`<span class="mm-card-meta">${dailyOf(t).length} 条每日工作</span>`);if(t.actualStart)b.closest('li').lastElementChild.insertAdjacentHTML('beforeend',`<span class="mm-card-meta">实际 ${esc(t.actualStart)}${t.actualEnd?' — '+esc(t.actualEnd):' 开始'}</span>`);});};
  // People, projects, completion checkboxes, and editing inside the day grid.
@@ -335,11 +334,17 @@
  }
  function reconcileParent(t){const children=dailyOf(t);if(!children.length)return;if(children.every(completed)){const latest=children.map(x=>x.completedAt).filter(Boolean).sort().at(-1)||stampNow();applyDone(t,true,latest);if(!t.completedAtManual){t.completedAt=latest;t.actualEnd=localStamp(latest).slice(0,10);}}else if(completed(t))applyDone(t,false);}
  function toggleTask(id,checked,dailyId=''){
-  const t=data.tasks.find(x=>x.id===id);if(!t)return;const stamp=stampNow(),top=$('#mm-timeline-pane')?.scrollTop||0;
+  const index=data.tasks.findIndex(x=>x.id===id);if(index<0)return;
+  const original=data.tasks[index],t=structuredClone(original),stamp=stampNow(),top=$('#mm-timeline-pane')?.scrollTop||0;
   if(!dailyId)t.completedAtManual=false;
   if(dailyId){const d=dailyOf(t).find(x=>x.id===dailyId);if(!d)return;applyDone(d,checked,stamp);reconcileParent(t);}
   else{applyDone(t,checked,stamp);for(const d of dailyOf(t))applyDone(d,checked,stamp);}
-  save();render();if($('#mm-timeline-pane'))$('#mm-timeline-pane').scrollTop=top;announce(checked?'已完成，实际完成时间已记录。':'已恢复未完成，完成时间已清除。');
+  data.tasks[index]=t;
+  const committed=save();
+  if(!committed)data.tasks[index]=original;
+  render();if($('#mm-timeline-pane'))$('#mm-timeline-pane').scrollTop=top;
+  if(committed)announce(checked?'已完成，实际完成时间已记录。':'已恢复未完成，完成时间已清除。');
+  return committed;
  }
  function checkBox(t,d=null){const x=d||t;return `<input type="checkbox" class="mm-task-check cursor-interaction" data-complete-task="${esc(t.id)}" ${d?`data-complete-daily="${esc(d.id)}"`:''} ${completed(x)?'checked':''} aria-label="完成：${esc(x.title)}">`;}
  root.addEventListener('change',e=>{if(e.target.matches('[data-complete-task]'))toggleTask(e.target.dataset.completeTask,e.target.checked,e.target.dataset.completeDaily||'');});
@@ -352,12 +357,134 @@
   let next=t.depends,seen=new Set([id]);while(next){if(seen.has(next))return '前置任务不能形成循环。';seen.add(next);next=data.tasks.find(x=>x.id===next)?.depends||'';}
   if(t.completedAt&&t.actualStartAt&&t.completedAt<t.actualStartAt)return '实际完成不能早于实际开始。';return '';
  }
- function putTask(t,id){const project=projectOf(t.product);for(const personId of [t.personId,...dailyOf(t).map(d=>d.personId)]){const person=personById(personId);if(person&&project&&!person.projectIds.includes(project))person.projectIds.push(project);}if(id)data.tasks=data.tasks.map(x=>x.id===id?t:x);else data.tasks.push(t);if(ui.role&&t.role!==ui.role)ui.role='';if(ui.module&&(ui.module==='~'?!!t.module:t.module!==ui.module))ui.module='';if(ui.phaseFilter!==''&&t.phase!==+ui.phaseFilter)ui.phaseFilter='';if(ui.status&&t.status!==ui.status)ui.status='';ui.quick=null;save();render();announce('已保存。');}
+ function renderBackup(container){
+  container.innerHTML=`<h2>本机备份</h2><p>导出当前项目、人员、任务、日报及草稿。导入时可以先核对数量。</p>
+   <div class="mm-buttons"><button type="button" data-export>导出备份</button><label>选择备份文件<input type="file" accept=".json,application/json" data-import></label></div>
+   <div data-preview></div><p role="status" data-backup-status></p>`;
+  const status=container.querySelector('[data-backup-status]'),preview=container.querySelector('[data-preview]');
+  container.querySelector('[data-export]').onclick=()=>{
+   const json=JSON.stringify(snapshot(),null,2),native=window.webkit?.messageHandlers?.desktopBackup;
+   if(native){
+    try{native.postMessage({action:'export',json});}catch{status.textContent='无法打开文件保存窗口。';}
+    return;
+   }
+   const url=URL.createObjectURL(new Blob([json],{type:'application/json'})),link=document.createElement('a');
+   link.href=url;link.download='产品经营地图-'+localStamp(stampNow()).slice(0,10)+'.json';container.append(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);status.textContent='已生成备份文件。';
+  };
+  container.querySelector('[data-import]').onchange=async e=>{
+   const input=e.target,file=input.files[0];preview.replaceChildren();status.textContent='';
+   if(!file)return;
+   try{
+    const incoming=JSON.parse(await file.text()),d=window.projectState.inspectBackup(incoming);
+    if(input.files[0]!==file)return;
+    const summary=document.createElement('p');
+    summary.textContent='备份包含 '+(d.projects?.length||0)+' 个项目、'+d.products.length+' 个产品、'+(d.people?.length||0)+' 位人员、'+d.tasks.length+' 项任务和 '+(d.reports?.length||0)+' 篇日报。确认后以文件中的数据替换当前工作区。';
+    const confirm=document.createElement('button');
+    confirm.textContent='确认恢复此备份';confirm.type='button';
+    confirm.onclick=()=>{
+     if(input.files[0]!==file)return;
+     const oldData=data,oldUi=ui;
+     try{
+      // Use fresh defaults before running exactly the same migration as normal app startup.
+      data=structuredClone(initial);ui=structuredClone(defaultUi);
+      restore(incoming);
+      if(!save({restore:true}))throw new Error(storageError);
+     }catch(error){data=oldData;ui=oldUi;status.textContent=error.message;return;}
+     location.reload();
+    };
+    preview.replaceChildren(summary,confirm);
+   }catch(error){if(input.files[0]===file)status.textContent='备份未导入。'+error.message;}
+  };
+ }
+ window.addEventListener('desktop-backup-status',e=>{
+  const target=$('[data-backup-status]');if(target&&typeof e.detail?.message==='string')target.textContent=e.detail.message;
+ });
+ window.addEventListener('beforeunload',e=>{
+  if(window.projectState.hasDirty()){e.preventDefault();e.returnValue='';}
+ });
+ function draftKey(kind,id,t){
+  return JSON.stringify(id?[kind,id]:[kind,t.product,t.start||t.date||'',t.personId||'',t.role||'',t.phase??'',t.module||'',t.lane||'']);
+ }
+ function taskDrafts(){return data.taskDrafts||[];}
+ function setDraft(draft,status){
+  data.taskDrafts=[...taskDrafts().filter(x=>x.key!==draft.key), draft];
+  ui.activeTaskDraft=draft.key;
+  const stored=save();
+  status.textContent=stored?'草稿已保存到本机 '+showStamp(draft.updatedAt).slice(11):storageError;
+  updateDraftAccess();
+  return stored;
+ }
+ function forgetDraft(key){
+  if(!taskDrafts().some(d=>d.key===key))return true;
+  const drafts=data.taskDrafts,active=ui.activeTaskDraft;
+  data.taskDrafts=drafts.filter(d=>d.key!==key);ui.activeTaskDraft='';
+  if(!save()){data.taskDrafts=drafts;ui.activeTaskDraft=active;return false;}
+  updateDraftAccess();return true;
+ }
+ function resumeDraft(draft){
+  if(!draft)return;
+  if(draft.kind==='quick')openQuick(draft.q);
+  else openTask(draft.id,draft.defaults,draft.key);
+ }
+ function updateDraftAccess(){
+  let box=$('#mm-draft-access');
+  if(!box){
+   box=document.createElement('div');box.id='mm-draft-access';box.className='mm-buttons';
+   box.innerHTML='<select aria-label="待恢复任务草稿"></select><button type="button">继续任务草稿</button>';
+   const anchor=$('.workspace-context');if(!anchor)return;anchor.after(box);
+   box.querySelector('button').onclick=()=>resumeDraft(taskDrafts().find(d=>d.key===box.querySelector('select').value));
+  }
+  const records=[...taskDrafts()].reverse(),select=box.querySelector('select');
+  select.replaceChildren(...records.map(d=>new Option((d.fields?.title||d.q?.draft?.title||'未命名任务')+' · '+showStamp(d.updatedAt),d.key)));
+  box.hidden=!records.length;
+ }
+ queueMicrotask(()=>{
+  updateDraftAccess();
+  resumeDraft(taskDrafts().find(d=>d.key===ui.activeTaskDraft));
+ });
+ function putTask(t,id,key){
+  const previous={tasks:data.tasks,people:data.people,drafts:taskDrafts(),ui:{...ui}};
+  const project=projectOf(t.product),assigned=new Set([t.personId,...dailyOf(t).map(d=>d.personId)]);
+  data.people=data.people.map(p=>assigned.has(p.id)&&project&&!p.projectIds.includes(project)?{...p,projectIds:[...p.projectIds,project]}:p);
+  data.tasks=id?data.tasks.map(x=>x.id===id?t:x):[...data.tasks,t];
+  data.taskDrafts=taskDrafts().filter(d=>d.key!==key);
+  ui.activeTaskDraft='';ui.quick=null;
+  if(ui.role&&t.role!==ui.role)ui.role='';
+  if(ui.module&&(ui.module==='~'?!!t.module:t.module!==ui.module))ui.module='';
+  if(ui.phaseFilter!==''&&t.phase!==+ui.phaseFilter)ui.phaseFilter='';
+  if(ui.status&&t.status!==ui.status)ui.status='';
+  if(!save()){
+   data.tasks=previous.tasks;data.people=previous.people;data.taskDrafts=previous.drafts;Object.assign(ui,previous.ui);
+   return false;
+  }
+  updateDraftAccess();closeTaskEditor();closeQuick();render();announce('已保存。');return true;
+ }
  function quickForm(q){return `<form id="mm-quick-form"><div class="mm-quick-context">${esc(q.date)} · ${esc(personLabel(q.personId)||q.role||'未分配')}</div><label>任务名称<input name="title" maxlength="100" placeholder="输入任务名称，回车添加" value="${esc(q.draft?.title||'')}" aria-label="快速任务名称" required autocomplete="off"></label><div id="mm-quick-error" class="mm-error" role="alert"></div><div class="mm-buttons"><button type="submit" class="mm-primary cursor-interaction">添加</button><button type="button" class="cursor-interaction" id="mm-quick-more">编辑详情</button><button type="button" class="cursor-interaction" id="mm-quick-cancel">取消</button></div></form>`;}
  function quickTask(q){const form=$('#mm-quick-form');if(!form)return null;const f=Object.fromEntries(new FormData(form)),person=personById(q.personId);return taskDefaults({product:q.product,role:q.role||person?.role||'',personId:person?.id||'',owner:person?.name||'',title:f.title.trim(),start:q.date||'',end:q.date||''});}
  function closeQuick(){const el=$('#mm-quick-popover');ui.quick=null;if(el){if(el.matches(':popover-open'))el.hidePopover();el.remove();}}
- function bindQuick(){const form=$('#mm-quick-form');if(!form)return;const q=ui.quick;form.oninput=()=>{if(ui.quick)ui.quick.draft=Object.fromEntries(new FormData(form));};form.onsubmit=e=>{e.preventDefault();const t=quickTask(q);if(!t)return;const error=validateTask(t,'new');if(error){$('#mm-quick-error').textContent=error;return;}t.id='t'+uid();closeQuick();putTask(t,null);};$('#mm-quick-cancel').onclick=closeQuick;$('#mm-quick-more').onclick=()=>{const t=quickTask(q);closeQuick();openTask(null,t);};}
+ function bindQuick(){
+  const form=$('#mm-quick-form');if(!form)return;
+  const q=ui.quick,key=draftKey('quick',null,q),status=$('#mm-quick-error');
+  form.oninput=()=>{
+   q.draft=Object.fromEntries(new FormData(form));
+   const {product,personId,role,date,draft}=q;
+   setDraft({kind:'quick',key,q:{product,personId,role,date,draft},updatedAt:stampNow()},status);
+  };
+  form.onsubmit=e=>{
+   e.preventDefault();const t=quickTask(q);if(!t)return;
+   const error=validateTask(t,'new');if(error){status.textContent=error;return;}
+   t.id='t'+uid();if(!putTask(t,null,key))status.textContent=storageError;
+  };
+  $('#mm-quick-cancel').onclick=()=>{if(forgetDraft(key))closeQuick();else status.textContent=storageError;};
+  $('#mm-quick-more').onclick=()=>{
+   const t=quickTask(q);closeQuick();openTask(null,t,key);
+   $('#mm-task-form').dispatchEvent(new Event('input',{bubbles:true}));
+  };
+ }
  function openQuick(q){
+  const saved=taskDrafts().find(d=>d.key===draftKey('quick',null,q));
+  q={...q,draft:saved?.q?.draft||q.draft};
   clearTimeout(timeSaveTimer);closeQuick();ui.quick=q;ui.day=q.date||ui.day;ui.dayPerson=q.personId||'';renderDayPanel();
   if($('#mm-focus-day'))$('#mm-focus-day').value=ui.day;
   const el=document.createElement('div');el.id='mm-quick-popover';el.className='mm-quick-popover';el.setAttribute('popover','auto');el.setAttribute('role','dialog');el.setAttribute('aria-label','快速添加任务');el.innerHTML=quickForm(q);root.append(el);
@@ -438,8 +565,12 @@
  const renderTimeBeforeChecklist=renderTime;
  renderTime=function(tasks){renderTimeBeforeChecklist(tasks);const tools=$('#mm-view-time .mm-timeline-tools');tools.insertAdjacentHTML('beforeend',`<label>查看日期<input type="date" id="mm-focus-day" value="${esc(ui.day)}" aria-label="查看某天任务"></label><label>当日人员<select id="mm-day-person" aria-label="按人员查看任务">${assignmentOptions(ui.dayPerson||'').replace('未分配','全部人员')}</select></label>`);$('#mm-focus-day').onchange=e=>{if(e.target.value)selectDay(e.target.value);else{ui.day='';ui.quick=null;renderDayPanel();save();}};$('#mm-day-person').value=ui.dayPerson||'';$('#mm-day-person').onchange=e=>{ui.dayPerson=e.target.value;renderDayPanel();save();};$('#mm-view-time').insertAdjacentHTML('beforeend','<section id="mm-day-panel" class="mm-day-panel" aria-label="当天任务清单" hidden></section>');$('#mm-timeline-pane').addEventListener('scroll',updateDaySlots,{passive:true});renderDayPanel();};
 
- openTask=function(id,defaults={}){
-  const original=data.tasks.find(x=>x.id===id),t=original?structuredClone(original):taskDefaults(defaults),panel=$('#mm-editor');$('#mm-config').hidden=true;closeQuick();panel.hidden=false;
+ openTask=function(id,defaults={},resumeKey){
+  const original=data.tasks.find(x=>x.id===id),t=original?structuredClone(original):taskDefaults(defaults),panel=$('#mm-editor');
+  const key=resumeKey||draftKey('task',id,t),draft=taskDrafts().find(d=>d.kind==='task'&&d.key===key);
+  $('#mm-config').hidden=true;closeQuick();panel.hidden=false;
+  const sourceReports=(data.reports||[]).filter(report=>t.sourceReportIds?.includes(report.id));
+  const relatedTask=data.tasks.find(task=>task.id===t.relatedTaskId);
   const start=t.startAt?localStamp(t.startAt):t.start?t.start+'T09:00':'',end=t.endAt?localStamp(t.endAt):t.end?t.end+'T18:00':'';
   panel.innerHTML=`
    <div class="mm-modal-head"><h3 id="mm-task-heading">${id?'编辑任务':'新建任务'}</h3><button type="button" id="mm-close-task" aria-label="关闭任务窗口">✕</button></div>
@@ -453,6 +584,7 @@
      <label>实际完成时间（可修改）<input type="datetime-local" step="1" name="completedAt" aria-label="实际完成时间" value="${esc(localStamp(t.completedAt))}"></label>
      <label class="mm-form-wide">备注<textarea name="notes" rows="3" maxlength="2000" placeholder="对接团队、联系人、交付要求或相关链接">${esc(t.notes||'')}</textarea></label>
     </div>
+    ${sourceReports.length||relatedTask?`<div class="task-links">${sourceReports.map(report=>`<button type="button" data-source-report="${esc(report.id)}">来源日报 · ${esc(report.date)}</button>`).join('')}${relatedTask?`<button type="button" id="mm-related-task">关联排期 · ${esc(relatedTask.title)}</button>`:''}</div>`:''}
     <details class="mm-task-details"><summary>更多信息：岗位、状态、阶段与验收</summary><div class="mm-form-grid">
      <label>岗位<select name="role">${options(['',...new Set([...data.roles,...data.people.map(p=>p.role).filter(Boolean),t.role])],t.role)}</select></label>
      <label>状态<select name="status">${options(['待开始','进行中','待验收','已完成','受阻'],t.status)}</select></label>
@@ -460,6 +592,8 @@
      <label>业务板块<select name="module"><option value="">未归类</option>${options(data.modules.map(m=>({value:m.id,label:m.name})),t.module)}</select></label>
      <label>大阶段<select name="phase">${options(data.phases.map((name,i)=>({value:String(i),label:name})),String(t.phase))}</select></label>
      <label>渠道<select name="lane">${options(data.lanes.map(l=>({value:l.id,label:l.name})),t.lane)}</select></label>
+     <label>行动日期<input type="date" name="actionDate" value="${esc(t.actionDate||'')}"></label>
+     <label>协作方<input name="collaborator" maxlength="80" value="${esc(t.collaborator||'')}"></label>
      <label>市场／站点<input name="market" value="${esc(t.market)}" maxlength="60"></label>
      <label>子阶段<input name="subphase" value="${esc(t.subphase)}" maxlength="60"></label>
      <label>任务性质<select name="kind">${options(['执行任务','放行检查','经营决策'],t.kind||'执行任务')}</select></label>
@@ -470,21 +604,37 @@
      <label>阻碍／待决策<input name="blockReason" value="${esc(t.blockReason)}" maxlength="180"></label>
     </div></details>
     <details class="mm-task-details" ${defaults.focusDaily?'open':''}><summary>每日子任务</summary><section class="mm-daily-editor"><div class="mm-daily-head"><strong>每日子任务</strong><button type="button" id="mm-add-daily" class="cursor-interaction">＋ 日任务</button></div><div id="mm-daily-entries"></div></section></details>
+    <div id="mm-task-draft-status" class="mm-label" role="status"></div>
     <div id="mm-task-error" role="alert" class="mm-error"></div>
     <div class="mm-buttons"><button type="button" id="mm-save-task" class="mm-primary cursor-interaction">保存</button><button type="button" id="mm-cancel-task" class="cursor-interaction">取消</button>${id?'<button type="button" id="mm-delete-task" class="mm-delete cursor-interaction">删除任务</button>':''}</div>
    </form>`;
-  const form=$('#mm-task-form');let daily=structuredClone(dailyOf(t));
+  const form=$('#mm-task-form');let daily=structuredClone(draft?.children||dailyOf(t));
+  form.querySelectorAll('[data-source-report]').forEach(button=>button.onclick=()=>{
+   const report=sourceReports.find(item=>item.id===button.dataset.sourceReport);
+   if(report)openReport(report.date, report.personId);
+  });
+  if(relatedTask)$('#mm-related-task').onclick=()=>{if(!window.projectState.hasDirty()||save())openTask(relatedTask.id);};
+  function captureDraft(){
+   const fields=Object.fromEntries(new FormData(form));
+   setDraft({kind:'task',key,id:id||null,defaults:{...defaults,product:t.product},fields,children:readChildren(),updatedAt:stampNow()},$('#mm-task-draft-status'));
+  }
+  form.addEventListener('input',captureDraft);form.addEventListener('change',captureDraft);
   function readChildren(){return Array.from(form.querySelectorAll('[data-daily-id]')).map(row=>{const d={...(daily.find(x=>x.id===row.dataset.dailyId)||{}),id:row.dataset.dailyId};row.querySelectorAll('[data-child-key]').forEach(x=>d[x.dataset.childKey]=x.value);return d;});}
   function drawChildren(){
    $('#mm-daily-entries').innerHTML=daily.length?daily.map(d=>`<div class="mm-daily-entry" data-daily-id="${esc(d.id)}"><label>日期<input type="date" data-child-key="date" aria-label="日任务日期" value="${esc(d.date)}"></label><label class="mm-daily-title">当天任务<input data-child-key="title" aria-label="日任务名称" value="${esc(d.title)}" maxlength="100"></label><label>执行人<select data-child-key="personId" aria-label="日任务执行人"><option value="">沿用主负责人</option>${options(data.people.map(p=>({value:p.id,label:personLabel(p.id)})),d.personId||'')}</select></label><label>状态<select data-child-key="status" aria-label="日任务状态">${options(['待开始','进行中','待验收','已完成','受阻'],d.status)}</select></label><button type="button" data-child-remove="${esc(d.id)}" class="cursor-interaction">移除</button><label>开始时间<input type="datetime-local" data-child-key="startLocal" aria-label="日任务开始时间" value="${esc(d.startLocal??localStamp(d.startAt))}"></label><label>预计完成<input type="datetime-local" data-child-key="endLocal" aria-label="日任务预计完成" value="${esc(d.endLocal??localStamp(d.endAt))}"></label><label>实际完成<input type="datetime-local" step="1" data-child-key="doneLocal" aria-label="日任务实际完成" value="${esc(d.doneLocal??localStamp(d.completedAt))}"></label><label class="mm-daily-output">交付与记录<input data-child-key="delivery" value="${esc(d.delivery)}" maxlength="300"></label></div>`).join(''):'<div class="mm-exec-empty">暂无每日子任务。</div>';
-   form.querySelectorAll('[data-child-remove]').forEach(b=>b.onclick=()=>{daily=readChildren().filter(d=>d.id!==b.dataset.childRemove);drawChildren();});
+   form.querySelectorAll('[data-child-remove]').forEach(b=>b.onclick=()=>{daily=readChildren().filter(d=>d.id!==b.dataset.childRemove);drawChildren();captureDraft();});
    form.querySelectorAll('[data-child-key=status]').forEach(s=>s.onchange=()=>{const row=s.closest('[data-daily-id]'),input=row.querySelector('[data-child-key=doneLocal]');if(s.value==='已完成'&&!input.value)input.value=localStamp(stampNow());if(s.value!=='已完成')input.value='';});
   }
-  drawChildren();$('#mm-add-daily').onclick=()=>{daily=readChildren();daily.push({id:'d'+uid(),date:ui.day||t.start||'',title:'',personId:t.personId||'',status:'待开始',delivery:'',completedAt:''});drawChildren();};
+  drawChildren();$('#mm-add-daily').onclick=()=>{daily=readChildren();daily.push({id:'d'+uid(),date:ui.day||t.start||'',title:'',personId:t.personId||'',status:'待开始',delivery:'',completedAt:''});drawChildren();captureDraft();};
   form.elements.personId.onchange=e=>{const p=personById(e.target.value);if(p)form.elements.role.value=p.role;};
   form.elements.status.onchange=e=>{if(e.target.value==='已完成'&&!form.elements.completedAt.value)form.elements.completedAt.value=localStamp(stampNow());if(e.target.value!=='已完成')form.elements.completedAt.value='';};
   form.elements.completedAt.onchange=e=>{if(e.target.value)form.elements.status.value='已完成';else if(form.elements.status.value==='已完成')form.elements.status.value='待开始';};
   form.elements.product.onchange=e=>{form.elements.depends.innerHTML='<option value="">无</option>'+options(data.tasks.filter(x=>x.product===e.target.value&&x.id!==id).map(x=>({value:x.id,label:x.title})),null);};
+  if(draft){
+   form.elements.product.value=draft.fields.product;form.elements.product.onchange({target:form.elements.product});
+   for(const [name,value] of Object.entries(draft.fields))if(form.elements.namedItem(name))form.elements.namedItem(name).value=value;
+   $('#mm-task-draft-status').textContent='已恢复本机草稿。';
+  }
   const submit=()=>{
    const f=Object.fromEntries(new FormData(form)),person=personById(f.personId),next={...t,...f,id:id||'t'+uid(),title:f.title.trim(),phase:+f.phase,owner:person?.name||'',startAt:fromLocal(f.startAt),endAt:fromLocal(f.endAt),start:f.startAt.slice(0,10),end:f.endAt.slice(0,10),completedAt:chosenStamp(f.completedAt,t.completedAt),completedAtManual:Boolean(f.completedAt&&(t.completedAtManual||f.completedAt!==localStamp(t.completedAt)))};
    const error=validateTask(next,next.id);if(error){$('#mm-task-error').textContent=error;return;}const children=readChildren();
@@ -492,11 +642,18 @@
    if(children.some(d=>d.startLocal&&d.endLocal&&d.endLocal<d.startLocal)){$('#mm-task-error').textContent='日任务预计完成不能早于开始。';return;}
    next.dailyWork=children.map(d=>{const old=dailyOf(t).find(x=>x.id===d.id),out={...d,title:d.title.trim(),personId:d.personId||next.personId,owner:personById(d.personId||next.personId)?.name||'',startAt:fromLocal(d.startLocal),endAt:fromLocal(d.endLocal),completedAt:chosenStamp(d.doneLocal,old?.completedAt)};if(out.status==='已完成'){applyDone(out,true);if(!out.completedAt)out.completedAt=stampNow();}else{out.completedAt='';out.actualEnd='';}delete out.startLocal;delete out.endLocal;delete out.doneLocal;return out;});
    if(next.status==='已完成'){applyDone(next,true);if(!completed(t))for(const d of next.dailyWork)applyDone(d,true,next.completedAt);}else{if(completed(t))for(const d of next.dailyWork)applyDone(d,false);next.completedAt='';next.actualEnd='';}
-   reconcileParent(next);closeTaskEditor();putTask(next,id);
+   reconcileParent(next);if(!putTask(next,id,key))$('#mm-task-error').textContent=storageError;
   };
   $('#mm-close-task').onclick=closeTaskEditor;
-  form.onsubmit=e=>{e.preventDefault();submit();};$('#mm-save-task').onclick=submit;$('#mm-cancel-task').onclick=()=>closeTaskEditor();
-  if(id)$('#mm-delete-task').onclick=()=>{data.tasks=data.tasks.filter(x=>x.id!==id);data.tasks.forEach(x=>{if(x.depends===id)x.depends='';});closeTaskEditor();save();render();announce('已删除任务。');};
+  form.onsubmit=e=>{e.preventDefault();submit();};$('#mm-save-task').onclick=submit;
+  $('#mm-cancel-task').onclick=()=>{if(forgetDraft(key))closeTaskEditor();else $('#mm-task-error').textContent=storageError;};
+  if(id)$('#mm-delete-task').onclick=()=>{
+   const old=data.tasks,previous=taskDrafts(),active=ui.activeTaskDraft;
+   data.tasks=old.filter(x=>x.id!==id).map(x=>x.depends===id?{...x,depends:''}:x);
+   data.taskDrafts=previous.filter(d=>d.id!==id);ui.activeTaskDraft='';
+   if(!save()){data.tasks=old;data.taskDrafts=previous;ui.activeTaskDraft=active;$('#mm-task-error').textContent=storageError;return;}
+   updateDraftAccess();closeTaskEditor();render();announce('已删除任务。');
+  };
   const dialog=$('#mm-task-dialog');if(!dialog.open)dialog.showModal();
   if(defaults.focusDaily){const row=Array.from(form.querySelectorAll('[data-daily-id]')).find(x=>x.dataset.dailyId===defaults.focusDaily);row?.querySelector('input')?.focus();}else form.elements.title.focus();
  };
@@ -515,15 +672,155 @@
  }
  function openProduct(id,projectId=ui.project||data.projects[0]?.id){const p=data.products.find(x=>x.id===id)||{name:'',projectId},panel=$('#mm-config');closeTaskEditor();panel.hidden=false;panel.innerHTML=`<h3>${id?'编辑产品':'添加空白产品'}</h3><form id="mm-product-admin"><div class="mm-form-grid"><label>产品名称<input name="name" value="${esc(p.name)}" maxlength="45" required></label><label>所属项目<select name="projectId">${options(data.projects.map(j=>({value:j.id,label:j.name})),p.projectId)}</select></label></div><div id="mm-product-admin-error" class="mm-error" role="alert"></div><div class="mm-buttons"><button type="button" id="mm-product-admin-save" class="mm-primary cursor-interaction">保存产品</button><button type="button" id="mm-product-admin-close" class="cursor-interaction">关闭</button></div></form>`;$('#mm-product-admin-close').onclick=()=>panel.hidden=true;$('#mm-product-admin-save').onclick=()=>{const f=Object.fromEntries(new FormData($('#mm-product-admin')));if(!f.name.trim()){$('#mm-product-admin-error').textContent='请填写产品名称。';return;}const next={...p,...f,id:id||'p'+uid(),name:f.name.trim()};if(id)data.products=data.products.map(x=>x.id===id?next:x);else data.products.push(next);ui.project=next.projectId;ui.product=next.id;panel.hidden=true;save();render();};}
  function renderProjects(){const panel=$('#mm-view-projects');panel.innerHTML=`<div class="mm-admin-head"><span class="mm-label">项目下管理产品；每个产品有独立时间地图。</span><button type="button" id="mm-project-add" class="mm-primary cursor-interaction">＋ 项目</button></div><table class="mm-admin-table"><thead><tr><th>项目／产品</th><th>负责人／成员</th><th class="mm-optional-col">计划时间</th><th>状态／进度</th><th>操作</th></tr></thead><tbody>${data.projects.map(j=>{const products=data.products.filter(p=>p.projectId===j.id),tasks=data.tasks.filter(t=>projectOf(t.product)===j.id),members=data.people.filter(p=>p.projectIds.includes(j.id));return `<tr><td><strong>${esc(j.name)}</strong>${products.map(p=>`<small><button type="button" class="cursor-interaction" data-project-product="${esc(p.id)}">${esc(p.name)}</button><button type="button" class="cursor-interaction" data-edit-product="${esc(p.id)}" aria-label="编辑${esc(p.name)}">编辑</button></small>`).join('')||'<small>暂无产品</small>'}</td><td>${esc(personLabel(j.ownerId))}<small>${members.length} 人：${esc(members.map(p=>p.name).join('、')||'未配置')}</small></td><td class="mm-optional-col">${esc(j.start||'未排期')}<br>${esc(j.end||'未排期')}</td><td>${esc(j.status)}<small>${statsLabel(tasks)}</small></td><td><button type="button" class="cursor-interaction" data-edit-project="${esc(j.id)}">编辑</button><button type="button" class="cursor-interaction" data-add-product="${esc(j.id)}">＋ 产品</button></td></tr>`;}).join('')}</tbody></table>`;$('#mm-project-add').onclick=()=>openProject();panel.querySelectorAll('[data-edit-project]').forEach(b=>b.onclick=()=>openProject(b.dataset.editProject));panel.querySelectorAll('[data-add-product]').forEach(b=>b.onclick=()=>openProduct(null,b.dataset.addProduct));panel.querySelectorAll('[data-edit-product]').forEach(b=>b.onclick=()=>openProduct(b.dataset.editProduct));panel.querySelectorAll('[data-project-product]').forEach(b=>b.onclick=()=>{ui.product=b.dataset.projectProduct;ui.project=projectOf(ui.product);ui.view='time';save();render();});}
- const renderBeforeRoster=render;
- render=function(){
-  ensureRecords();renderBeforeRoster();$('#mm-controls').hidden=['marketing','ceo','fields','people','projects'].includes(ui.view);renderPeople();renderProjects();
-  $('#mm-products').innerHTML=data.projects.map(j=>`<div class="mm-project-group"><button type="button" class="cursor-interaction" data-select-project="${esc(j.id)}" aria-pressed="${ui.project===j.id&&ui.product==='*'}">${esc(j.name)}</button></div>${data.products.filter(p=>p.projectId===j.id).map(p=>`<button type="button" class="cursor-interaction" data-product="${esc(p.id)}" aria-pressed="${ui.product===p.id}">${esc(p.name)}</button>`).join('')}`).join('');
-  root.querySelectorAll('[data-product]').forEach(b=>b.onclick=()=>{ui.product=b.dataset.product;ui.project=ui.product==='*'?'':projectOf(ui.product);ui.dayPerson='';ui.quick=null;closeTaskEditor();$('#mm-config').hidden=true;save();render();});root.querySelectorAll('[data-select-project]').forEach(b=>b.onclick=()=>{ui.project=b.dataset.selectProject;ui.product='*';ui.dayPerson='';ui.quick=null;save();render();});
-  $('#mm-new-product').onclick=()=>openProduct();if(ui.product==='*'&&ui.project)$('#mm-product-title').textContent=data.projects.find(j=>j.id===ui.project)?.name||'项目总览';
-  if(ui.view==='time'&&!data.products.some(p=>productInScope(p.id))){$('#mm-unplanned').innerHTML='<span>项目尚无产品。</span><button type="button" id="mm-empty-product" class="cursor-interaction">＋ 产品</button>';$('#mm-empty-product').onclick=()=>openProduct();}const count=statsFor(visible());if(ui.view==='time')$('#mm-view-time .mm-timeline-note').insertAdjacentHTML('beforeend',`<span><strong>完成 ${count.done} / ${count.total} 项</strong></span>`);
- };
  const fieldsBeforeRoster=renderFields;renderFields=function(){fieldsBeforeRoster();$('#mm-view-fields').insertAdjacentHTML('beforeend','<div class="mm-field-item"><strong>人员管理表</strong><span>人员 ID、姓名、工号、岗位、状态；人员与项目为多对多关系。</span></div><div class="mm-field-item"><strong>项目管理表</strong><span>项目 ID、名称、负责人、产品、成员、计划时间、状态。</span></div><div class="mm-field-item"><strong>完成记录</strong><span>任务 ID、勾选状态、实际完成时间；勾选自动记录北京时间，支持人工修改。父任务与子任务按最细层级去重统计。完成不自动代替阶段验收。</span></div>');};
+
+ const viewButtons = new Map([...root.querySelectorAll('[data-view]')].map(button => [button.dataset.view, button]));
+ const taskFilters = [
+  ['module', 'mm-module-filter', '全部板块'], ['role', 'mm-role-filter', '全部岗位'],
+  ['status', 'mm-status-filter', '全部状态'], ['channel', 'mm-channel-filter', '全部渠道'],
+  ['market', 'mm-market-filter', '全部市场'], ['phaseFilter', 'mm-phase-filter', '全部阶段'],
+ ];
+
+ function closeMenus() {
+  root.querySelectorAll('.workspace-menu[open]').forEach(menu => menu.open = false);
+ }
+ function changeView(view) {
+  if (view !== 'backup' && window.projectState.hasDirty?.() && !save()) return;
+  closeMenus();
+  closeTaskEditor();
+  closeQuick();
+  clearTimeout(timeSaveTimer);
+  if (timeFrame) { cancelAnimationFrame(timeFrame); timeFrame = 0; }
+  $('#mm-config').hidden = true;
+  ui.view = view;
+  save();
+  render();
+ }
+ function openReport(date, personId = '') {
+  ui.reportDate = date;
+  ui.reportPerson = personId;
+  changeView('report');
+ }
+ function openTime(date) {
+  changeView('time');
+  if (date && ui.view === 'time') selectDay(date);
+ }
+ function workspaceContext() {
+  return {data, ui, save, render, esc, uid, visible, leafItems, openTask, toggleTask, openReport, openTime,
+   taskDefaults, applyDone, localStamp, personLabel, productName, productInScope, announce};
+ }
+ function selectScope(project, product) {
+  ui.project = project;
+  ui.product = product;
+  ui.dayPerson = '';
+  changeView(ui.view);
+ }
+ function renderScope() {
+  const project = data.projects.find(item => item.id === ui.project);
+  $('#mm-product-title').textContent = ui.product === '*' ? project?.name || '全部项目' : productName(ui.product);
+  $('#mm-products').innerHTML = data.projects.map(item => {
+   const products = data.products.filter(product => product.projectId === item.id);
+   return '<button class="scope-project" type="button" data-select-project="'+esc(item.id)+'">'+esc(item.name)+'</button>'+
+    products.map(product => '<button class="scope-product" type="button" data-product="'+esc(product.id)+'">'+esc(product.name)+'</button>').join('');
+  }).join('');
+  root.querySelectorAll('[data-product]').forEach(button => {
+   const id = button.dataset.product;
+   button.setAttribute('aria-pressed', String(ui.product === id && (id !== '*' || !ui.project)));
+   button.onclick = () => selectScope(id === '*' ? '' : projectOf(id), id);
+  });
+  root.querySelectorAll('[data-select-project]').forEach(button => {
+   button.setAttribute('aria-pressed', String(ui.product === '*' && ui.project === button.dataset.selectProject));
+   button.onclick = () => selectScope(button.dataset.selectProject, '*');
+  });
+ }
+ function renderFilters() {
+  const values = {
+   module: [...data.modules.map(m => ({value:m.id,label:m.name})), {value:'~',label:'未归类'}],
+   role: [...new Set([...data.roles, ...data.tasks.map(t => t.role).filter(Boolean)])],
+   channel: data.lanes.map(l => ({value:l.id,label:l.name})),
+   market: [...new Set(scopedTasks().map(t => t.market).filter(Boolean))],
+   phaseFilter: data.phases.map((label,i) => ({value:String(i),label})),
+   status: ['待开始','进行中','待验收','已完成','受阻'],
+  };
+  const selected = [];
+  for (const [key,id,all] of taskFilters) {
+   const select = $('#'+id);
+   select.innerHTML = '<option value="">'+all+'</option>'+options(values[key], ui[key]);
+   select.value = ui[key] || '';
+   if (ui[key]) selected.push(select.selectedOptions[0]?.textContent || ui[key]);
+  }
+  $('#mm-group').value = ui.group;
+  $('#mm-group').closest('label').hidden = ui.view !== 'map';
+  $('#mm-filter-summary').textContent = selected.join(' / ');
+  $('#mm-clear-filters').hidden = !selected.length;
+ }
+ function render() {
+  ensureRecords();
+  if (!viewButtons.has(ui.view)) ui.view = 'calendar';
+  for (const [view, button] of viewButtons) {
+   const active = ui.view === view;
+   $('#mm-view-'+view).hidden = !active;
+   if (active) button.setAttribute('aria-current', 'page');
+   else button.removeAttribute('aria-current');
+  }
+  renderScope();
+  const title = $('#mm-view-title');
+  title.textContent = viewButtons.get(ui.view).textContent;
+  title.hidden = ['calendar','report','feishu','updates'].includes(ui.view);
+  const filtered = ['time','map','table','calendar'].includes(ui.view);
+  $('#mm-controls').hidden = !filtered;
+  $('#mm-add-task').hidden = ui.view === 'calendar';
+  if (filtered) renderFilters();
+  const ctx = workspaceContext();
+  switch (ui.view) {
+   case 'calendar': window.dashboardCalendar.render($('#mm-view-calendar'), ctx); break;
+   case 'report': window.dashboardReports.render($('#mm-view-report'), ctx); break;
+   case 'feishu': window.dashboardFeishu.render($('#mm-feishu-content'), ctx); break;
+   case 'backup': renderBackup($('#mm-backup')); break;
+   case 'marketing': renderMarketing(); break;
+   case 'ceo': renderCEO(); break;
+   case 'fields': renderFields(); break;
+   case 'people': renderPeople(); break;
+   case 'projects': renderProjects(); break;
+   case 'map': renderMap(visible()); break;
+   case 'table': renderTable(visible()); break;
+   case 'time': {
+    const tasks = visible();
+    renderTime(tasks);
+    const count = statsFor(tasks);
+    $('#mm-view-time .mm-timeline-note').insertAdjacentHTML('beforeend','<span>完成 '+count.done+' / '+count.total+' 项</span>');
+    if (!data.products.some(p => productInScope(p.id))) {
+     $('#mm-unplanned').innerHTML='<span>项目尚无产品。</span><button type="button" id="mm-empty-product">＋ 产品</button>';
+     $('#mm-empty-product').onclick=()=>openProduct();
+    }
+    break;
+   }
+  }
+ }
+ for (const [view, button] of viewButtons) button.onclick = () => changeView(view);
+ for (const [key,id] of taskFilters) $('#'+id).onchange = e => { ui[key]=e.target.value; save(); render(); };
+ $('#mm-clear-filters').onclick = () => { for (const [key] of taskFilters) ui[key]=''; save(); render(); };
+ $('#mm-group').onchange = e => { ui.group=e.target.value; save(); render(); };
+ $('#mm-add-task').onclick = () => openTask(null);
+ $('#mm-new-product').onclick = () => { closeMenus(); openProduct(); };
+ $('#mm-manage-project').onclick = () => { changeView('projects'); if(ui.project) openProject(ui.project); };
+ $('#mm-settings').onclick = () => { closeMenus(); openSettings(); $('#mm-config').scrollIntoView({block:'nearest'}); };
+ document.addEventListener('click', event => {
+  root.querySelectorAll('.workspace-menu[open]').forEach(menu => { if (!menu.contains(event.target)) menu.open=false; });
+ });
+ document.addEventListener('keydown',event => {
+  if (event.key !== 'Escape') return;
+  const menu = root.querySelector('.workspace-menu[open]');
+  if (menu) { menu.open=false; menu.querySelector('summary').focus(); }
+ });
+ let syncTimer;
+ function scheduleFeishuSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => window.dashboardFeishu.flush(workspaceContext()), 900);
+ }
+ window.addEventListener('online', scheduleFeishuSync);
+ window.addEventListener('dashboard-saved', scheduleFeishuSync);
+ scheduleFeishuSync();
 
  data.version=5;
  render();

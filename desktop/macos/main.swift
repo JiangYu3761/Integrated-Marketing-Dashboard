@@ -1,4 +1,5 @@
 import Cocoa
+import UniformTypeIdentifiers
 import WebKit
 
 private let appName = "产品经营地图"
@@ -57,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             configuration.userContentController.addUserScript(WKUserScript(source: "window.localStorage.clear()", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
         configuration.userContentController.add(self, name: "desktopUpdates")
+        configuration.userContentController.add(self, name: "desktopBackup")
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -117,7 +119,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     @objc private func reloadProject() {
-        webView.reload()
+        confirmPendingWrites(action: "刷新") { [weak self] allowed in
+            if allowed { self?.webView.reload() }
+        }
+    }
+
+    private func confirmPendingWrites(action: String, completion: @escaping (Bool) -> Void) {
+        webView.evaluateJavaScript("window.projectState?.hasDirty?.() === true") { [weak self] result, _ in
+            guard result as? Bool == true, let self = self else { completion(true); return }
+            self.showWindow()
+            let alert = NSAlert()
+            alert.messageText = "部分修改尚未写入本机"
+            alert.informativeText = "可返回编辑页面重试保存。现在" + action + "会丢失未写入的内容。"
+            alert.addButton(withTitle: "返回编辑")
+            alert.addButton(withTitle: "继续" + action)
+            alert.beginSheetModal(for: self.window) { response in
+                completion(response == .alertSecondButtonReturn)
+            }
+        }
     }
 
     private func startServer() {
@@ -202,6 +221,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !failed, NativeSmoke.request == nil, webView?.url != nil else { return .terminateNow }
+        confirmPendingWrites(action: "退出") { allowed in
+            sender.reply(toApplicationShouldTerminate: allowed)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         quitting = true
         updates?.stop()
@@ -229,14 +256,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     @objc private func checkForUpdates() { updates?.check(manual: true) }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "desktopUpdates", message.frameInfo.isMainFrame,
+        guard message.frameInfo.isMainFrame,
               let url = message.frameInfo.request.url, url.scheme == appURL.scheme, url.host == appURL.host, url.port == appURL.port,
-              let body = message.body as? [String: Any], let updater = updates else { return }
+              let body = message.body as? [String: Any] else { return }
+        if message.name == "desktopBackup", body["action"] as? String == "export", let json = body["json"] as? String {
+            saveBackup(json)
+            return
+        }
+        guard message.name == "desktopUpdates", let updater = updates else { return }
         switch body["action"] as? String {
         case "check": updater.check(manual: true)
         case "automatic": if let enabled = body["enabled"] as? Bool { updater.setAutomatic(enabled) }
         case "status": updater.onStatus?(updater.status())
         default: break
+        }
+    }
+
+    private func saveBackup(_ json: String) {
+        let panel = NSSavePanel()
+        panel.title = "导出工作数据备份"
+        panel.nameFieldStringValue = "产品经营地图备份.json"
+        panel.allowedContentTypes = [.json]
+        panel.beginSheetModal(for: window) { [weak self] response in
+            let message: String
+            if response == .OK, let destination = panel.url {
+                do {
+                    try Data(json.utf8).write(to: destination, options: .atomic)
+                    message = "备份已导出。"
+                } catch {
+                    message = "备份导出失败。请确认所选位置可写，再次导出。"
+                }
+            } else {
+                message = "已取消导出。"
+            }
+            self?.webView.callAsyncJavaScript(
+                "window.dispatchEvent(new CustomEvent('desktop-backup-status', {detail: {message}}))",
+                arguments: ["message": message], in: nil, in: .page, completionHandler: nil)
+        }
+    }
+
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        guard frame.isMainFrame, let url = frame.request.url,
+              url.scheme == appURL.scheme, url.host == appURL.host, url.port == appURL.port else {
+            completionHandler(nil)
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.beginSheetModal(for: window) { response in
+            completionHandler(response == .OK ? panel.urls : nil)
         }
     }
 
@@ -259,7 +330,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         if url.scheme == appURL.scheme && url.host == appURL.host && url.port == appURL.port {
             decisionHandler(.allow)
         } else {
-            if ["https", "http"].contains(url.scheme ?? "") { NSWorkspace.shared.open(url) }
+            if navigationAction.navigationType == .linkActivated, ["https", "http"].contains(url.scheme ?? "") {
+                NSWorkspace.shared.open(url)
+            }
             decisionHandler(.cancel)
         }
     }
@@ -269,7 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         if let url = navigationAction.request.url, ["https", "http"].contains(url.scheme ?? "") {
             if url.scheme == appURL.scheme && url.host == appURL.host && url.port == appURL.port {
                 webView.load(URLRequest(url: url))
-            } else {
+            } else if navigationAction.navigationType == .linkActivated {
                 NSWorkspace.shared.open(url)
             }
         }
